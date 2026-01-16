@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+
+{% block title %}Удалить {{ object.name }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h4 class="mb-0">
+                    <i class="bi bi-exclamation-triangle"></i> Удаление неликвида
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-danger">
+                    <h5 class="alert-heading">Внимание!</h5>
+                    <p class="mb-0">
+                        Вы уверены, что хотите удалить неликвид 
+                        <strong>"{{ object.name }}"</strong> 
+                        ({{ object.code }})?
+                    </p>
+                </div>
+                
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h6>Информация о продукте:</h6>
+                        <ul class="mb-0">
+                            <li><strong>Код:</strong> {{ object.code }}</li>
+                            <li><strong>Наименование:</strong> {{ object.name }}</li>
+                            <li><strong>Подразделение:</strong> {{ object.subdivision.name }}</li>
+                            <li><strong>Количество:</strong> {{ object.quantity }} {{ object.unit }}</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <i class="bi bi-info-circle"></i>
+                    Это действие нельзя отменить. Будут удалены все связанные изображения и история изменений.
+                </div>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="d-flex justify-content-between">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-trash"></i> Да, удалить
+                        </button>
+                        
+                        <a href="{% url 'product_detail' product_id=object.id subdivision_code=object.subdivision.code %}" 
+                           class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Отмена
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

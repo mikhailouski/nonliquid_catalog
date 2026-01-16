@@ -1,0 +1,209 @@
+{% extends 'base.html' %}
+{% load catalog_tags %}
+
+{% block title %}{{ subdivision.name }} - Каталог неликвидов{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="mb-0">{{ subdivision.name }}</h2>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Код подразделения:</strong> {{ subdivision.code }}</p>
+                        {% if subdivision.description %}
+                        <p><strong>Описание:</strong> {{ subdivision.description }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <p><strong>Неликвидов:</strong> {{ page_obj.paginator.count }}</p>
+                        {% if subdivision.manager %}
+                        <p><strong>Руководитель:</strong> {{ subdivision.manager.get_full_name|default:subdivision.manager.username }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Фильтры -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-funnel"></i> Фильтры</h5>
+    </div>
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                <label for="status" class="form-label">Статус:</label>
+                <select name="status" id="status" class="form-select">
+                    <option value="">Все статусы</option>
+                    <option value="available" {% if status_filter == 'available' %}selected{% endif %}>Доступен</option>
+                    <option value="reserved" {% if status_filter == 'reserved' %}selected{% endif %}>Зарезервирован</option>
+                    <option value="used" {% if status_filter == 'used' %}selected{% endif %}>Использован</option>
+                    <option value="written_off" {% if status_filter == 'written_off' %}selected{% endif %}>Списано</option>
+                </select>
+            </div>
+            
+            <div class="col-md-4">
+                <label for="condition" class="form-label">Состояние:</label>
+                <select name="condition" id="condition" class="form-select">
+                    <option value="">Все состояния</option>
+                    <option value="new" {% if condition_filter == 'new' %}selected{% endif %}>Новое</option>
+                    <option value="used" {% if condition_filter == 'used' %}selected{% endif %}>Б/у</option>
+                    <option value="defective" {% if condition_filter == 'defective' %}selected{% endif %}>Неисправное</option>
+                    <option value="for_parts" {% if condition_filter == 'for_parts' %}selected{% endif %}>На запчасти</option>
+                </select>
+            </div>
+            
+            <div class="col-md-4 d-flex align-items-end">
+                <div>
+                    <button type="submit" class="btn btn-primary me-2">
+                        <i class="bi bi-filter"></i> Применить
+                    </button>
+                    <a href="?{% if request.GET.q %}q={{ request.GET.q }}&{% endif %}" class="btn btn-secondary">
+                        <i class="bi bi-x-circle"></i> Сбросить
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Кнопка добавления -->
+{% if can_add_product %}
+<div class="mb-4">
+    <a href="{% url 'product_create' subdivision.code %}" class="btn btn-success">
+        <i class="bi bi-plus-circle"></i> Добавить неликвид
+    </a>
+</div>
+{% endif %}
+
+<!-- Список продуктов -->
+<div class="row">
+    {% if products %}
+        {% for product in products %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-img-top d-flex align-items-center justify-content-center bg-light" style="height: 200px; overflow: hidden;">
+                    {% with product.get_main_image as main_image %}
+                    {% if main_image %}
+                    <img src="{{ main_image.image.url }}" 
+                         alt="{{ product.name }}"
+                         class="img-fluid" 
+                         style="max-height: 100%; max-width: 100%; object-fit: contain;">
+                    {% else %}
+                    <div class="text-muted">
+                        <i class="bi bi-image" style="font-size: 3rem;"></i>
+                        <p class="mt-2">Нет изображения</p>
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+                
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <a href="{% url 'product_detail' product_id=product.id subdivision_code=subdivision.code %}" 
+                           class="text-decoration-none">
+                            {{ product.code }}
+                        </a>
+                    </h5>
+                    <p class="card-text">{{ product.name|truncatechars:50 }}</p>
+                    
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="status-badge {{ product.status|status_class }}">
+                            {{ product.get_status_display }}
+                        </span>
+                        <span class="badge bg-secondary">
+                            {{ product.quantity }} {{ product.unit }}
+                        </span>
+                    </div>
+                    
+                    {% if product.location %}
+                    <p class="card-text small text-muted mb-1">
+                        <i class="bi bi-geo-alt"></i> {{ product.location|truncatechars:30 }}
+                    </p>
+                    {% endif %}
+                    
+                    <p class="card-text small text-muted">
+                        <i class="bi bi-person"></i> {{ product.created_by.get_full_name|default:product.created_by.username }}
+                    </p>
+                </div>
+                
+                <div class="card-footer bg-transparent">
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'product_detail' product_id=product.id subdivision_code=subdivision.code %}" 
+                           class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-eye"></i> Подробнее
+                        </a>
+                        
+                        {% if product.can_edit.user %}
+                        <a href="{% url 'product_update' pk=product.id %}" 
+                           class="btn btn-sm btn-outline-warning">
+                            <i class="bi bi-pencil"></i> Редактировать
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="bi bi-inbox" style="font-size: 3rem; color: #6c757d;"></i>
+                <h5 class="mt-3">Нет неликвидов в этом подразделении</h5>
+                <p class="text-muted">Здесь пока нет добавленных записей</p>
+                {% if can_add_product %}
+                <a href="{% url 'product_create' subdivision.code %}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Добавить первый неликвид
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Пагинация -->
+{% if page_obj.has_other_pages %}
+<nav aria-label="Page navigation" class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+        <li class="page-item">
+            <a class="page-link" 
+               href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if condition_filter %}&condition={{ condition_filter }}{% endif %}">
+                <i class="bi bi-chevron-left"></i> Назад
+            </a>
+        </li>
+        {% endif %}
+        
+        <li class="page-item disabled">
+            <span class="page-link">
+                Страница {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}
+            </span>
+        </li>
+        
+        {% if page_obj.has_next %}
+        <li class="page-item">
+            <a class="page-link" 
+               href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if condition_filter %}&condition={{ condition_filter }}{% endif %}">
+                Вперед <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+<!-- Назад -->
+<div class="mt-4">
+    <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Вернуться к списку подразделений
+    </a>
+</div>
+{% endblock %}

@@ -1,0 +1,170 @@
+{% extends 'base.html' %}
+{% load catalog_tags %}
+
+{% block title %}Главная - Каталог неликвидов{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="display-6">Каталог неликвидов предприятия</h1>
+        <p class="lead">Система учета и каталогизации неликвидной продукции</p>
+    </div>
+</div>
+
+<!-- Статистика -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Всего неликвидов</h6>
+                        <h2 class="mb-0">{{ total_products }}</h2>
+                    </div>
+                    <i class="bi bi-box-seam" style="font-size: 2.5rem;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% for stat in status_stats %}
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">{{ stat.get_status_display|default:stat.status }}</h6>
+                        <h4 class="mb-0">{{ stat.count }}</h4>
+                    </div>
+                    <span class="status-badge {{ stat.status|status_class }}" style="font-size: 1.2rem;">
+                        {{ stat.get_status_display|default:stat.status|slice:":1" }}
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Быстрый поиск -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-search"></i> Быстрый поиск</h5>
+    </div>
+    <div class="card-body">
+        <form action="{% url 'search_products' %}" method="get" class="row g-3">
+            <div class="col-md-10">
+                <input type="text" 
+                       name="q" 
+                       class="form-control" 
+                       placeholder="Введите код, название или описание для поиска..."
+                       value="{{ request.GET.q }}">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Найти
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Список подразделений -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-building"></i> Подразделения предприятия</h5>
+        <span class="badge bg-secondary">{{ subdivisions|length }} подразделений</span>
+    </div>
+    <div class="card-body">
+        {% if subdivisions %}
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            {% for subdivision in subdivisions %}
+            <div class="col">
+                <div class="card h-100">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">{{ subdivision.code }}</h6>
+                    </div>
+                    <div class="card-body">
+                        <h5 class="card-title">{{ subdivision.name }}</h5>
+                        
+                        {% if subdivision.description %}
+                        <p class="card-text text-muted small">{{ subdivision.description|truncatechars:100 }}</p>
+                        {% endif %}
+                        
+                        <div class="d-flex justify-content-between align-items-center mt-3">
+                            <div>
+                                <span class="badge bg-info">
+                                    <i class="bi bi-box"></i> {{ subdivision.product_count }} неликвидов
+                                </span>
+                            </div>
+                            {% if subdivision.manager %}
+                            <small class="text-muted" data-bs-toggle="tooltip" title="Руководитель">
+                                <i class="bi bi-person"></i> {{ subdivision.manager.get_full_name|default:subdivision.manager.username }}
+                            </small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <a href="{% url 'subdivision_products' subdivision.code %}" 
+                           class="btn btn-outline-primary btn-sm w-100">
+                            <i class="bi bi-arrow-right-circle"></i> Перейти к каталогу
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-building text-muted" style="font-size: 3rem;"></i>
+            <h5 class="mt-3">Нет подразделений</h5>
+            <p class="text-muted">Подразделения еще не добавлены в систему</p>
+            {% if user.is_superuser %}
+            <a href="/admin/catalog/subdivision/add/" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Добавить подразделение
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Быстрые действия для авторизованных -->
+{% if user.is_authenticated %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-lightning-charge"></i> Быстрые действия</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    {% for subdivision in subdivisions %}
+                        {% if subdivision|can_add_product:user %}
+                        <div class="col-md-4">
+                            <a href="{% url 'product_create' subdivision.code %}" 
+                               class="btn btn-success w-100">
+                                <i class="bi bi-plus-circle"></i> Добавить в {{ subdivision.code }}
+                            </a>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Инициализация tooltips
+    document.addEventListener('DOMContentLoaded', function() {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        })
+    })
+</script>
+{% endblock %}
