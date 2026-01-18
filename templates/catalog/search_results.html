@@ -53,9 +53,9 @@
                             {% for product in products %}
                             <tr>
                                 <td>
-                                    <strong>{{ product.code }}</strong>
+                                    <strong>{{ product.code|highlight:query }}</strong>
                                 </td>
-                                <td>{{ product.name|truncatechars:50 }}</td>
+                                <td>{{ product.name|highlight:query|truncatechars:50 }}</td>
                                 <td>
                                     <a href="{% url 'subdivision_products' product.subdivision.code %}" 
                                        class="text-decoration-none">

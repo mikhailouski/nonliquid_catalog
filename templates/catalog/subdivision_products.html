@@ -76,8 +76,9 @@
 <!-- Кнопка добавления -->
 {% if can_add_product %}
 <div class="mb-4">
-    <a href="{% url 'product_create' subdivision.code %}" class="btn btn-success">
-        <i class="bi bi-plus-circle"></i> Добавить неликвид
+    <a href="{% url 'product_create_with_images' subdivision.code %}" 
+        class="btn btn-success">
+            <i class="bi bi-plus-circle"></i> Добавить неликвид
     </a>
 </div>
 {% endif %}
@@ -159,7 +160,7 @@
                 <h5 class="mt-3">Нет неликвидов в этом подразделении</h5>
                 <p class="text-muted">Здесь пока нет добавленных записей</p>
                 {% if can_add_product %}
-                <a href="{% url 'product_create' subdivision.code %}" class="btn btn-primary">
+                <a href="{% url 'product_create_with_images' subdivision.code %}" class="btn btn-success">
                     <i class="bi bi-plus-circle"></i> Добавить первый неликвид
                 </a>
                 {% endif %}

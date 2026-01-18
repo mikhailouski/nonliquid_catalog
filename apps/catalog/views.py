@@ -1,13 +1,21 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 from django.urls import reverse_lazy
 from django.db.models import Count, Q
-from django.http import JsonResponse, Http404
+from django.db.models.functions import Lower
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+import json
+import os
 from .models import Subdivision, Product, ProductImage
-from .forms import ProductForm, ProductImageForm, MultipleImageUploadForm
+from .forms import (
+    ProductForm, ProductImageForm, MultipleImageUploadForm,
+    ProductCreateWithImagesForm, DragAndDropUploadForm
+)
 from .decorators import can_edit_product, can_delete_product, can_add_to_subdivision
 
 class HomeView(ListView):
@@ -105,54 +113,50 @@ class ProductDetailView(DetailView):
         return context
 
 class ProductCreateView(LoginRequiredMixin, CreateView):
-    """Создание нового продукта"""
+    """Создание нового продукта (базовый класс)"""
     model = Product
     form_class = ProductForm
     template_name = 'catalog/product_form.html'
     
     def dispatch(self, request, *args, **kwargs):
-        # Проверяем права перед отображением формы
-        subdivision = get_object_or_404(
+        # Получаем подразделение и сохраняем
+        self.subdivision = get_object_or_404(
             Subdivision, 
             code=self.kwargs['subdivision_code']
         )
         
-        if not subdivision.can_add_product(request.user):
+        # Проверяем права
+        if not self.subdivision.can_add_product(request.user):
             messages.error(
                 request, 
                 'У вас нет прав для добавления продуктов в это подразделение'
             )
             return redirect('subdivision_products', 
-                          subdivision_code=subdivision.code)
+                          subdivision_code=self.subdivision.code)
         
         return super().dispatch(request, *args, **kwargs)
     
     def get_initial(self):
         """Устанавливаем подразделение по умолчанию"""
         initial = super().get_initial()
-        subdivision = get_object_or_404(
-            Subdivision, 
-            code=self.kwargs['subdivision_code']
-        )
-        initial['subdivision'] = subdivision
+        initial['subdivision'] = self.subdivision
         return initial
     
     def get_form_kwargs(self):
         """Передаем подразделение в форму"""
         kwargs = super().get_form_kwargs()
-        subdivision = get_object_or_404(
-            Subdivision, 
-            code=self.kwargs['subdivision_code']
-        )
-        kwargs['initial']['subdivision'] = subdivision
+        kwargs['initial']['subdivision'] = self.subdivision
         return kwargs
+    
+    def get_context_data(self, **kwargs):
+        """Добавляем subdivision в контекст"""
+        context = super().get_context_data(**kwargs)
+        context['subdivision'] = self.subdivision
+        return context
     
     def form_valid(self, form):
         form.instance.created_by = self.request.user
-        form.instance.subdivision = get_object_or_404(
-            Subdivision, 
-            code=self.kwargs['subdivision_code']
-        )
+        form.instance.subdivision = self.subdivision
         response = super().form_valid(form)
         messages.success(
             self.request, 
@@ -261,15 +265,25 @@ def upload_product_images(request, product_id):
     })
 
 def search_products(request):
-    """Поиск продуктов"""
-    query = request.GET.get('q', '')
+    """Поиск продуктов с учетом регистра для русского и английского языка"""
+    query = request.GET.get('q', '').strip()
+    
     if query:
-        products = Product.objects.filter(
-            Q(code__icontains=query) |
-            Q(name__icontains=query) |
-            Q(description__icontains=query) |
-            Q(location__icontains=query)
-        ).select_related('subdivision')[:50]
+        # Приводим запрос к нижнему регистру
+        query_lower = query.lower()
+        
+        # Используем аннотацию с Lower для всех поисковых полей
+        products = Product.objects.annotate(
+            search_code=Lower('code'),
+            search_name=Lower('name'),
+            search_description=Lower('description'),
+            search_location=Lower('location')
+        ).filter(
+            Q(search_code__contains=query_lower) |
+            Q(search_name__contains=query_lower) |
+            Q(search_description__contains=query_lower) |
+            Q(search_location__contains=query_lower)
+        ).select_related('subdivision').order_by('code')[:50]
     else:
         products = Product.objects.none()
     
@@ -296,3 +310,172 @@ def user_profile(request):
     }
     
     return render(request, 'catalog/user_profile.html', context)
+
+class ProductCreateWithImagesView(LoginRequiredMixin, CreateView):
+    """Создание продукта с возможностью загрузки изображений"""
+    model = Product
+    form_class = ProductCreateWithImagesForm
+    template_name = 'catalog/product_create_with_images.html'
+    
+    def dispatch(self, request, *args, **kwargs):
+        # Получаем подразделение и сохраняем в атрибуте класса
+        self.subdivision = get_object_or_404(
+            Subdivision, 
+            code=self.kwargs['subdivision_code']
+        )
+        
+        # Проверяем права
+        if not self.subdivision.can_add_product(request.user):
+            messages.error(
+                request, 
+                'У вас нет прав для добавления продуктов в это подразделение'
+            )
+            return redirect('subdivision_products', 
+                          subdivision_code=self.subdivision.code)
+        
+        return super().dispatch(request, *args, **kwargs)
+    
+    def get_initial(self):
+        """Устанавливаем подразделение по умолчанию"""
+        initial = super().get_initial()
+        initial['subdivision'] = self.subdivision
+        return initial
+    
+    def get_form_kwargs(self):
+        """Передаем подразделение в форму"""
+        kwargs = super().get_form_kwargs()
+        kwargs['initial']['subdivision'] = self.subdivision
+        return kwargs
+    
+    def get_context_data(self, **kwargs):
+        """Добавляем subdivision в контекст"""
+        context = super().get_context_data(**kwargs)
+        context['subdivision'] = self.subdivision
+        return context
+    
+    def form_valid(self, form):
+        # Сохраняем продукт
+        form.instance.created_by = self.request.user
+        form.instance.subdivision = self.subdivision
+        
+        response = super().form_valid(form)
+        
+        # Обрабатываем загруженные изображения
+        images = form.files.getlist('images')
+        if images:
+            for image in images:
+                ProductImage.objects.create(
+                    product=self.object,
+                    image=image,
+                    uploaded_by=self.request.user
+                )
+            
+            messages.success(
+                self.request, 
+                f'Продукт "{form.instance.name}" создан с {len(images)} изображениями!'
+            )
+        else:
+            messages.success(
+                self.request, 
+                f'Продукт "{form.instance.name}" успешно создан!'
+            )
+        
+        return response
+    
+    def get_success_url(self):
+        return reverse_lazy('product_detail', kwargs={
+            'product_id': self.object.id,
+            'subdivision_code': self.object.subdivision.code
+        })
+
+@login_required
+@require_POST
+@csrf_exempt
+def ajax_upload_images(request, product_id):
+    """AJAX загрузка изображений"""
+    try:
+        product = get_object_or_404(Product, id=product_id)
+        
+        # Проверка прав
+        if not product.can_edit(request.user):
+            return JsonResponse({
+                'success': False,
+                'error': 'У вас нет прав для загрузки изображений'
+            }, status=403)
+        
+        # Получаем файлы из request.FILES
+        files = request.FILES.getlist('files')
+        
+        if not files:
+            return JsonResponse({
+                'success': False,
+                'error': 'Не выбрано ни одного файла'
+            }, status=400)
+        
+        created_images = []
+        for file in files:
+            # Проверка размера
+            if file.size > 10 * 1024 * 1024:
+                continue
+            
+            # Создаем изображение
+            product_image = ProductImage.objects.create(
+                product=product,
+                image=file,
+                uploaded_by=request.user
+            )
+            
+            created_images.append({
+                'id': product_image.id,
+                'url': product_image.image.url,
+                'name': os.path.basename(product_image.image.name)
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Загружено {len(created_images)} изображений',
+            'images': created_images
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+@login_required
+def quick_product_create(request, subdivision_code):
+    """Быстрое создание продукта с минимальными полями"""
+    subdivision = get_object_or_404(Subdivision, code=subdivision_code)
+    
+    # Проверка прав
+    if not subdivision.can_add_product(request.user):
+        messages.error(
+            request, 
+            'У вас нет прав для добавления продуктов в это подразделение'
+        )
+        return redirect('subdivision_products', 
+                      subdivision_code=subdivision.code)
+    
+    if request.method == 'POST':
+        form = ProductForm(request.POST)
+        if form.is_valid():
+            product = form.save(commit=False)
+            product.created_by = request.user
+            product.subdivision = subdivision
+            product.save()
+            
+            messages.success(
+                request, 
+                f'Продукт "{product.name}" успешно создан!'
+            )
+            
+            # Перенаправляем на страницу загрузки изображений
+            return redirect('upload_product_images', product_id=product.id)
+    else:
+        form = ProductForm(initial={'subdivision': subdivision})
+    
+    return render(request, 'catalog/quick_product_create.html', {
+        'form': form,
+        'subdivision': subdivision
+    })

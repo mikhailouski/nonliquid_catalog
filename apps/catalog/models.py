@@ -315,20 +315,33 @@ class ProductImage(models.Model):
         return f"Изображение для {self.product.code}"
     
     def save(self, *args, **kwargs):
-        """Переопределение save для автоматического создания миниатюр"""
+        """Переопределение save для обработки изображений"""
+        is_new = self.pk is None
+        
         # Если это новое изображение и нет других изображений у продукта,
         # делаем его основным
-        if self.pk is None and not self.product.images.exists():
+        if is_new and not self.product.images.exists():
             self.is_main = True
         
         # Проверяем, чтобы было только одно основное изображение
         if self.is_main:
-            ProductImage.objects.filter(product=self.product, is_main=True).update(is_main=False)
+            ProductImage.objects.filter(
+                product=self.product, 
+                is_main=True
+            ).exclude(pk=self.pk).update(is_main=False)
         
         super().save(*args, **kwargs)
         
-        # Здесь позже добавим создание миниатюры через Celery
-        # create_thumbnail_task.delay(self.id)
+        # Если это новое изображение, запускаем обработку
+        if is_new:
+            try:
+                from .tasks import process_product_image
+                process_product_image.delay(self.id)
+            except Exception as e:
+                # Логируем ошибку, но не прерываем сохранение
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Ошибка при запуске обработки изображения: {e}")
 
 class ChangeLog(models.Model):
     """Модель для отслеживания изменений в продуктах"""

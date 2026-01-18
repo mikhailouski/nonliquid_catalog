@@ -1,4 +1,6 @@
 from django import template
+from django.utils.html import escape
+from django.utils.safestring import mark_safe
 
 register = template.Library()
 
@@ -28,3 +30,28 @@ def status_class(status):
 def can_add_product(subdivision, user):
     """Проверяет, может ли пользователь добавлять продукты в подразделение"""
     return subdivision.can_add_product(user)    
+
+@register.filter
+def highlight(text, query):
+    """Подсветка найденного текста в результатах поиска"""
+    if not text or not query:
+        return text
+    
+    text_str = str(text)
+    query_str = str(query)
+    
+    # Экранируем HTML
+    text_str = escape(text_str)
+    query_str = escape(query_str)
+    
+    # Находим все вхождения (регистронезависимо)
+    import re
+    pattern = re.compile(re.escape(query_str), re.IGNORECASE)
+    
+    # Заменяем найденное на подсвеченную версию
+    highlighted = pattern.sub(
+        lambda m: f'<span class="bg-warning">{m.group()}</span>',
+        text_str
+    )
+    
+    return mark_safe(highlighted)
