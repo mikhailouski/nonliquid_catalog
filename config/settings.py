@@ -152,3 +152,9 @@ IMAGE_ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp']
 IMAGE_THUMBNAIL_SIZE = (200, 200)
 IMAGE_OPTIMIZED_SIZE = (1920, 1080)
 IMAGE_QUALITY = 85
+
+# Максимальный размер загружаемых файлов (10MB)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+
+ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp']

@@ -350,3 +350,45 @@ body {
         height: 120px;
     }
 }
+
+/* Стили для валидации формы */
+.was-validated .form-control:valid {
+    border-color: #198754;
+}
+
+.was-validated .form-control:invalid {
+    border-color: #dc3545;
+}
+
+/* Анимация для проверки кода */
+@keyframes pulse-border {
+    0% { border-color: #ffc107; }
+    50% { border-color: #fd7e14; }
+    100% { border-color: #ffc107; }
+}
+
+.checking-code {
+    animation: pulse-border 1s infinite;
+}
+
+/* Стили для сообщений об ошибках */
+.code-validation-error {
+    font-size: 0.875em;
+    margin-top: 0.25rem;
+}
+
+/* Индикатор загрузки */
+.loading-spinner {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

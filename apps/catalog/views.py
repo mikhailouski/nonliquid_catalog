@@ -6,7 +6,7 @@ from django.views.generic import ListView, DetailView, CreateView, UpdateView, D
 from django.urls import reverse_lazy
 from django.db.models import Count, Q
 from django.db.models.functions import Lower
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseRedirect
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 import json
@@ -14,7 +14,7 @@ import os
 from .models import Subdivision, Product, ProductImage
 from .forms import (
     ProductForm, ProductImageForm, MultipleImageUploadForm,
-    ProductCreateWithImagesForm, DragAndDropUploadForm
+    ProductCreateWithImagesForm
 )
 from .decorators import can_edit_product, can_delete_product, can_add_to_subdivision
 
@@ -155,6 +155,20 @@ class ProductCreateView(LoginRequiredMixin, CreateView):
         return context
     
     def form_valid(self, form):
+        # Проверяем уникальность кода в подразделении
+        code = form.cleaned_data.get('code')
+        
+        # Проверяем, существует ли уже продукт с таким кодом в этом подразделении
+        if Product.objects.filter(
+            code=code, 
+            subdivision=self.subdivision
+        ).exists():
+            form.add_error(
+                'code', 
+                f'Продукт с кодом "{code}" уже существует в подразделении "{self.subdivision.name}"'
+            )
+            return self.form_invalid(form)
+        
         form.instance.created_by = self.request.user
         form.instance.subdivision = self.subdivision
         response = super().form_valid(form)
@@ -354,33 +368,54 @@ class ProductCreateWithImagesView(LoginRequiredMixin, CreateView):
         return context
     
     def form_valid(self, form):
+        # Проверяем уникальность кода в подразделении
+        code = form.cleaned_data.get('code')
+        
+        # Проверяем, существует ли уже продукт с таким кодом в этом подразделении
+        if Product.objects.filter(
+            code=code, 
+            subdivision=self.subdivision
+        ).exists():
+            form.add_error(
+                'code', 
+                f'Продукт с кодом "{code}" уже существует в подразделении "{self.subdivision.name}"'
+            )
+            return self.form_invalid(form)
+        
         # Сохраняем продукт
         form.instance.created_by = self.request.user
         form.instance.subdivision = self.subdivision
         
-        response = super().form_valid(form)
+        # Сначала сохраняем продукт, чтобы получить ID
+        self.object = form.save()
         
-        # Обрабатываем загруженные изображения
-        images = form.files.getlist('images')
-        if images:
-            for image in images:
-                ProductImage.objects.create(
-                    product=self.object,
-                    image=image,
-                    uploaded_by=self.request.user
+        # Обрабатываем загруженные изображения из request.FILES
+        if 'images' in self.request.FILES:
+            images = self.request.FILES.getlist('images')
+            if images:
+                for image in images:
+                    ProductImage.objects.create(
+                        product=self.object,
+                        image=image,
+                        uploaded_by=self.request.user
+                    )
+                
+                messages.success(
+                    self.request, 
+                    f'Продукт "{form.instance.name}" создан с {len(images)} изображениями!'
                 )
-            
-            messages.success(
-                self.request, 
-                f'Продукт "{form.instance.name}" создан с {len(images)} изображениями!'
-            )
+            else:
+                messages.success(
+                    self.request, 
+                    f'Продукт "{form.instance.name}" успешно создан!'
+                )
         else:
             messages.success(
                 self.request, 
                 f'Продукт "{form.instance.name}" успешно создан!'
             )
         
-        return response
+        return HttpResponseRedirect(self.get_success_url())
     
     def get_success_url(self):
         return reverse_lazy('product_detail', kwargs={
@@ -460,6 +495,22 @@ def quick_product_create(request, subdivision_code):
     if request.method == 'POST':
         form = ProductForm(request.POST)
         if form.is_valid():
+            # Проверяем уникальность кода
+            code = form.cleaned_data.get('code')
+            
+            if Product.objects.filter(
+                code=code, 
+                subdivision=subdivision
+            ).exists():
+                form.add_error(
+                    'code', 
+                    f'Продукт с кодом "{code}" уже существует в этом подразделении'
+                )
+                return render(request, 'catalog/quick_product_create.html', {
+                    'form': form,
+                    'subdivision': subdivision
+                })
+            
             product = form.save(commit=False)
             product.created_by = request.user
             product.subdivision = subdivision
@@ -478,4 +529,23 @@ def quick_product_create(request, subdivision_code):
     return render(request, 'catalog/quick_product_create.html', {
         'form': form,
         'subdivision': subdivision
+    })
+
+@login_required
+def check_product_code(request, subdivision_code):
+    """Проверка уникальности кода продукта через AJAX"""
+    code = request.GET.get('code', '').strip()
+    subdivision = get_object_or_404(Subdivision, code=subdivision_code)
+    
+    if not code:
+        return JsonResponse({'valid': False, 'message': 'Код не может быть пустым'})
+    
+    exists = Product.objects.filter(
+        code=code, 
+        subdivision=subdivision
+    ).exists()
+    
+    return JsonResponse({
+        'valid': not exists,
+        'message': 'Код уже используется в этом подразделении' if exists else 'Код доступен'
     })

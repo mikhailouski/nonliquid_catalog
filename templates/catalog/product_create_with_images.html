@@ -60,6 +60,12 @@
     #image-preview-container {
         min-height: 100px;
     }
+    
+    .file-info {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin-top: 0.25rem;
+    }
 </style>
 {% endblock %}
 
@@ -86,16 +92,44 @@
                 </h4>
             </div>
             <div class="card-body">
+                <!-- Основная форма для данных продукта -->
                 <form method="post" enctype="multipart/form-data" id="product-form">
                     {% csrf_token %}
+                    
+                    <!-- Скрытый input для файлов -->
+                    <input type="file" 
+                           name="images" 
+                           id="image-upload" 
+                           multiple 
+                           accept="image/*" 
+                           class="d-none">
                     
                     <div class="row">
                         <!-- Основная информация -->
                         <div class="col-lg-6">
                             <h5 class="mb-3"><i class="bi bi-info-circle"></i> Основная информация</h5>
                             
+                            <!-- Поле Код продукции -->
+                            <div class="mb-3">
+                                <label for="{{ form.code.id_for_label }}" class="form-label">
+                                    Код продукции *
+                                </label>
+                                {{ form.code }}
+                                {% if form.code.help_text %}
+                                <div class="form-text">{{ form.code.help_text }}</div>
+                                {% endif %}
+                                {% if form.code.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.code.errors %}
+                                    <div class="text-danger">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Остальные поля кроме images и characteristics -->
                             {% for field in form %}
-                                {% if field.name != 'images' and field.name != 'characteristics' %}
+                                {% if field.name != 'images' and field.name != 'characteristics' and field.name != 'code' %}
                                 <div class="mb-3">
                                     <label for="{{ field.id_for_label }}" class="form-label">
                                         {{ field.label }}
@@ -107,7 +141,9 @@
                                     {% endif %}
                                     {% if field.errors %}
                                     <div class="invalid-feedback d-block">
-                                        {{ field.errors }}
+                                        {% for error in field.errors %}
+                                        <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
                                     </div>
                                     {% endif %}
                                 </div>
@@ -130,14 +166,10 @@
                                     <p class="text-muted small mt-2 mb-0">
                                         Максимальный размер: 10MB. Допустимые форматы: JPG, PNG, GIF, BMP
                                     </p>
+                                    <p class="text-muted small mt-1" id="file-counter">
+                                        Выбрано файлов: 0
+                                    </p>
                                 </div>
-                                
-                                <input type="file" 
-                                       name="images" 
-                                       id="image-upload" 
-                                       multiple 
-                                       accept="image/*" 
-                                       class="d-none">
                                 
                                 <!-- Превью изображений -->
                                 <div id="image-preview-container" class="row">
@@ -158,7 +190,9 @@
                                     {{ form.characteristics }}
                                     {% if form.characteristics.errors %}
                                     <div class="invalid-feedback d-block">
-                                        {{ form.characteristics.errors }}
+                                        {% for error in form.characteristics.errors %}
+                                        <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
                                     </div>
                                     {% endif %}
                                     <div class="form-text">
@@ -203,9 +237,11 @@
         const fileInput = document.getElementById('image-upload');
         const browseBtn = document.getElementById('browse-btn');
         const previewContainer = document.getElementById('image-preview-container');
+        const fileCounter = document.getElementById('file-counter');
         const form = document.getElementById('product-form');
         
-        let uploadedFiles = [];
+        // Массив для хранения выбранных файлов
+        let selectedFiles = [];
         
         // Открыть диалог выбора файлов
         browseBtn.addEventListener('click', function() {
@@ -240,8 +276,6 @@
         fileInput.addEventListener('change', function() {
             if (this.files.length) {
                 handleFiles(this.files);
-                // Сбрасываем input чтобы можно было выбирать те же файлы снова
-                this.value = '';
             }
         });
         
@@ -260,13 +294,14 @@
                     continue;
                 }
                 
-                // Добавляем файл в список
-                uploadedFiles.push(file);
+                // Добавляем файл в массив
+                selectedFiles.push(file);
                 
                 // Создаем превью
                 createPreview(file);
             }
             
+            updateFileCounter();
             updateFileInput();
         }
         
@@ -276,14 +311,15 @@
             
             reader.onload = function(e) {
                 const col = document.createElement('div');
-                col.className = 'col-6 col-md-4 col-lg-3';
+                col.className = 'col-6 col-md-4 col-lg-3 mb-3';
                 
                 const previewDiv = document.createElement('div');
                 previewDiv.className = 'image-preview';
                 
                 const img = document.createElement('img');
                 img.src = e.target.result;
-                img.className = 'img-fluid';
+                img.className = 'img-fluid rounded';
+                img.alt = file.name;
                 
                 const removeBtn = document.createElement('button');
                 removeBtn.type = 'button';
@@ -291,21 +327,32 @@
                 removeBtn.innerHTML = '<i class="bi bi-x"></i>';
                 removeBtn.title = 'Удалить';
                 
+                // Информация о файле
+                const fileInfo = document.createElement('div');
+                fileInfo.className = 'file-info';
+                fileInfo.innerHTML = `
+                    <div class="text-truncate">${file.name}</div>
+                    <div>${formatBytes(file.size)}</div>
+                `;
+                
+                // Обработчик удаления
                 removeBtn.addEventListener('click', function() {
-                    // Удаляем файл из списка
-                    const index = uploadedFiles.indexOf(file);
+                    // Удаляем файл из массива
+                    const index = selectedFiles.findIndex(f => f.name === file.name && f.size === file.size);
                     if (index > -1) {
-                        uploadedFiles.splice(index, 1);
+                        selectedFiles.splice(index, 1);
                     }
                     
                     // Удаляем превью
                     col.remove();
                     
+                    updateFileCounter();
                     updateFileInput();
                 });
                 
                 previewDiv.appendChild(img);
                 previewDiv.appendChild(removeBtn);
+                previewDiv.appendChild(fileInfo);
                 col.appendChild(previewDiv);
                 previewContainer.appendChild(col);
             };
@@ -319,21 +366,30 @@
             const dataTransfer = new DataTransfer();
             
             // Добавляем все файлы
-            uploadedFiles.forEach(file => {
+            selectedFiles.forEach(file => {
                 dataTransfer.items.add(file);
             });
             
             // Обновляем file input
             fileInput.files = dataTransfer.files;
+        }
+        
+        // Обновление счетчика файлов
+        function updateFileCounter() {
+            fileCounter.textContent = `Выбрано файлов: ${selectedFiles.length}`;
+        }
+        
+        // Форматирование размера файла
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
             
-            // Обновляем текст в upload area
-            if (uploadedFiles.length > 0) {
-                uploadArea.querySelector('p').textContent = 
-                    `Выбрано ${uploadedFiles.length} файл(ов)`;
-            } else {
-                uploadArea.querySelector('p').textContent = 
-                    'Перетащите сюда изображения или';
-            }
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
         }
         
         // Валидация формы перед отправкой
@@ -363,14 +419,71 @@
         
         // Автоматическое заполнение характеристик JSON
         const characteristicsField = document.getElementById('{{ form.characteristics.id_for_label }}');
-        characteristicsField.addEventListener('focus', function() {
-            if (!this.value.trim()) {
-                this.value = '{\n    \n}';
-                // Установить курсор в нужное место
-                this.selectionStart = 5;
-                this.selectionEnd = 5;
-            }
-        });
+        if (characteristicsField) {
+            characteristicsField.addEventListener('focus', function() {
+                if (!this.value.trim()) {
+                    this.value = '{\n    \n}';
+                    // Установить курсор в нужное место
+                    this.selectionStart = 5;
+                    this.selectionEnd = 5;
+                }
+            });
+        }
+        
+        // =========== ПРОВЕРКА УНИКАЛЬНОСТИ КОДА ===========
+        // Проверка уникальности кода при вводе
+        const codeField = document.getElementById('{{ form.code.id_for_label }}');
+        if (codeField) {
+            codeField.addEventListener('blur', function() {
+                const code = this.value.trim();
+                if (code) {
+                    // Показываем индикатор загрузки
+                    const originalBorder = this.style.borderColor;
+                    this.style.borderColor = '#ffc107';
+                    
+                    fetch(`/check-code/{{ subdivision.code }}/?code=${encodeURIComponent(code)}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.valid) {
+                                this.style.borderColor = '#198754'; // зеленый
+                            } else {
+                                this.style.borderColor = '#dc3545'; // красный
+                                
+                                // Создаем или обновляем элемент с ошибкой
+                                let errorDiv = this.parentElement.querySelector('.code-validation-error');
+                                if (!errorDiv) {
+                                    errorDiv = document.createElement('div');
+                                    errorDiv.className = 'code-validation-error invalid-feedback d-block';
+                                    this.parentElement.appendChild(errorDiv);
+                                }
+                                errorDiv.innerHTML = `<div class="text-danger">${data.message}</div>`;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Ошибка проверки кода:', error);
+                            this.style.borderColor = originalBorder;
+                        })
+                        .finally(() => {
+                            // Через 2 секунды возвращаем стандартный цвет
+                            setTimeout(() => {
+                                this.style.borderColor = '';
+                            }, 2000);
+                        });
+                }
+            });
+            
+            // Сбрасываем цвет при фокусе
+            codeField.addEventListener('focus', function() {
+                this.style.borderColor = '';
+                
+                // Удаляем сообщение об ошибке
+                const errorDiv = this.parentElement.querySelector('.code-validation-error');
+                if (errorDiv) {
+                    errorDiv.remove();
+                }
+            });
+        }
+        // =========== КОНЕЦ ПРОВЕРКИ УНИКАЛЬНОСТИ ===========
     });
 </script>
 {% endblock %}
