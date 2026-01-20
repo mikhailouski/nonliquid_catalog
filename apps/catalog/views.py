@@ -14,9 +14,10 @@ import os
 from .models import Subdivision, Product, ProductImage
 from .forms import (
     ProductForm, ProductImageForm, MultipleImageUploadForm,
-    ProductCreateWithImagesForm
+    ProductCreateWithImagesForm, 
 )
 from .decorators import can_edit_product, can_delete_product, can_add_to_subdivision
+from .models import Profile
 
 class HomeView(ListView):
     """Главная страница - список подразделений"""
@@ -61,7 +62,7 @@ class SubdivisionProductsView(ListView):
         context['subdivision'] = self.subdivision
         
         # Проверяем права пользователя
-        context['can_add_product'] = self.subdivision.can_add_product(self.request.user)
+        context['can_add_product'] = self.subdivision.can_user_add_product(self.request.user)
         
         # Получаем параметры фильтрации из GET-запроса
         status_filter = self.request.GET.get('status')
@@ -118,23 +119,29 @@ class ProductCreateView(LoginRequiredMixin, CreateView):
     form_class = ProductForm
     template_name = 'catalog/product_form.html'
     
-    def dispatch(self, request, *args, **kwargs):
-        # Получаем подразделение и сохраняем
-        self.subdivision = get_object_or_404(
-            Subdivision, 
-            code=self.kwargs['subdivision_code']
-        )
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['subdivision'] = self.subdivision
         
-        # Проверяем права
-        if not self.subdivision.can_add_product(request.user):
-            messages.error(
-                request, 
-                'У вас нет прав для добавления продуктов в это подразделение'
-            )
-            return redirect('subdivision_products', 
-                          subdivision_code=self.subdivision.code)
+        # Проверяем права пользователя
+        context['can_add_product'] = self.subdivision.can_user_add_product(self.request.user)
         
-        return super().dispatch(request, *args, **kwargs)
+        # Получаем параметры фильтрации из GET-запроса
+        status_filter = self.request.GET.get('status')
+        condition_filter = self.request.GET.get('condition')
+        
+        # Применяем фильтры к queryset
+        queryset = self.get_queryset()
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if condition_filter:
+            queryset = queryset.filter(condition=condition_filter)
+        
+        context['filtered_products'] = queryset
+        context['status_filter'] = status_filter
+        context['condition_filter'] = condition_filter
+        
+        return context
     
     def get_initial(self):
         """Устанавливаем подразделение по умолчанию"""
@@ -316,11 +323,19 @@ def user_profile(request):
     # Получаем группы пользователя
     groups = user.groups.all()
     
+    # Получаем названия групп для удобства проверки в шаблоне
+    group_names = [group.name for group in groups]
+    
     context = {
         'user': user,
         'created_products': created_products,
         'managed_subdivisions': managed_subdivisions,
         'groups': groups,
+        'group_names': group_names,  # Добавляем список названий групп
+        'is_editor': user.groups.filter(name='Editor').exists(),
+        'is_subdivision_admin': user.groups.filter(name='Subdivision_Admin').exists(),
+        'is_super_admin': user.groups.filter(name='Super_Admin').exists(),
+        'is_viewer': user.groups.filter(name='Viewer').exists(),
     }
     
     return render(request, 'catalog/user_profile.html', context)
@@ -339,7 +354,7 @@ class ProductCreateWithImagesView(LoginRequiredMixin, CreateView):
         )
         
         # Проверяем права
-        if not self.subdivision.can_add_product(request.user):
+        if not self.subdivision.can_user_add_product(request.user):
             messages.error(
                 request, 
                 'У вас нет прав для добавления продуктов в это подразделение'

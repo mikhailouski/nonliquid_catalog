@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.db.models import Q
 import os
 
 def validate_image_size(value):
@@ -21,6 +22,96 @@ def get_image_upload_path(instance, filename):
 def get_thumbnail_upload_path(instance, filename):
     """Генерация пути для загрузки миниатюр"""
     return f'product_thumbnails/{instance.product.subdivision.code}/{instance.product.code}/{filename}'
+
+class Profile(models.Model):
+    """Профиль пользователя с привязкой к подразделению"""
+    user = models.OneToOneField(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='profile',
+        verbose_name="Пользователь"
+    )
+    subdivision = models.ForeignKey(
+        'Subdivision', 
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='members',
+        verbose_name="Подразделение",
+        help_text="Подразделение, к которому привязан пользователь"
+    )
+    phone = models.CharField(
+        max_length=20,
+        blank=True,
+        verbose_name="Телефон"
+    )
+    position = models.CharField(
+        max_length=100,
+        blank=True,
+        verbose_name="Должность"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
+    
+    class Meta:
+        verbose_name = "Профиль пользователя"
+        verbose_name_plural = "Профили пользователей"
+    
+    def __str__(self):
+        return f"Профиль {self.user.username}"
+    
+    def clean(self):
+        """Валидация: пользователь может быть только в одном подразделении"""
+        if self.subdivision and self.pk:
+            # Проверяем, не привязан ли уже этот пользователь к другому подразделению
+            existing_profile = Profile.objects.filter(
+                user=self.user
+            ).exclude(pk=self.pk).first()
+            if existing_profile and existing_profile.subdivision != self.subdivision:
+                raise ValidationError(
+                    f"Пользователь {self.user.username} уже привязан к подразделению "
+                    f"{existing_profile.subdivision.name}"
+                )
+    
+    def get_user_permissions_in_subdivision(self, subdivision):
+        """Получить права пользователя в указанном подразделении"""
+        if not self.user.is_authenticated:
+            return {'view': True, 'add': False, 'edit_any': False, 'delete': False, 'manage': False}
+        
+        if self.user.is_superuser:
+            return {'view': True, 'add': True, 'edit_any': True, 'delete': True, 'manage': True}
+        
+        # Если пользователь не привязан к подразделению - только просмотр
+        if not self.subdivision:
+            return {'view': True, 'add': False, 'edit_any': False, 'delete': False, 'manage': False}
+        
+        # Проверяем права в зависимости от группы
+        is_in_subdivision = self.subdivision == subdivision
+        
+        # Права Viewer (только просмотр)
+        if self.user.groups.filter(name='Viewer').exists():
+            return {'view': True, 'add': False, 'edit_any': False, 'delete': False, 'manage': False}
+        
+        # Права Editor (только в своем подразделении)
+        if self.user.groups.filter(name='Editor').exists():
+            if is_in_subdivision:
+                return {'view': True, 'add': True, 'edit_any': True, 'delete': False, 'manage': False}
+            else:
+                return {'view': True, 'add': False, 'edit_any': False, 'delete': False, 'manage': False}
+        
+        # Права Subdivision_Admin (только в своем подразделении)
+        if self.user.groups.filter(name='Subdivision_Admin').exists():
+            if is_in_subdivision:
+                return {'view': True, 'add': True, 'edit_any': True, 'delete': True, 'manage': True}
+            else:
+                return {'view': True, 'add': False, 'edit_any': False, 'delete': False, 'manage': False}
+        
+        # Права Super_Admin (во всех подразделениях)
+        if self.user.groups.filter(name='Super_Admin').exists():
+            return {'view': True, 'add': True, 'edit_any': True, 'delete': True, 'manage': True}
+        
+        # По умолчанию - только просмотр
+        return {'view': True, 'add': False, 'edit_any': False, 'delete': False, 'manage': False}
 
 class Subdivision(models.Model):
     """Модель подразделения предприятия"""
@@ -69,29 +160,60 @@ class Subdivision(models.Model):
         return self.products.count()
     
     product_count.short_description = "Количество неликвидов"
-
-    def can_add_product(self, user):
-        """Проверяет, может ли пользователь добавлять продукты в подразделение"""
+    
+    def get_members(self):
+        """Получить всех пользователей, привязанных к этому подразделению"""
+        return User.objects.filter(profile__subdivision=self)
+    
+    def can_user_view(self, user):
+        """Может ли пользователь просматривать подразделение"""
+        if not user.is_authenticated:
+            return True  # Неавторизованные могут только просматривать
+        
+        if user.is_superuser:
+            return True
+        
+        # Проверяем права через профиль
+        if hasattr(user, 'profile'):
+            permissions = user.profile.get_user_permissions_in_subdivision(self)
+            return permissions['view']
+        
+        return True  # По умолчанию - может просматривать
+    
+    def can_user_add_product(self, user):
+        """Может ли пользователь добавлять продукты в подразделение"""
         if not user.is_authenticated:
             return False
         
         if user.is_superuser:
             return True
         
-        # Руководитель подразделения
-        if self.manager == user:
+        # Проверяем права через профиль
+        if hasattr(user, 'profile'):
+            permissions = user.profile.get_user_permissions_in_subdivision(self)
+            return permissions['add']
+        
+        return False
+    
+    def can_user_manage(self, user):
+        """Может ли пользователь управлять подразделением"""
+        if not user.is_authenticated:
+            return False
+        
+        if user.is_superuser:
             return True
         
-        # Проверка через группы
-        if user.groups.filter(name__in=['Super_Admin', 'Subdivision_Admin', 'Editor']).exists():
-            return True
-            
+        # Проверяем права через профиль
+        if hasattr(user, 'profile'):
+            permissions = user.profile.get_user_permissions_in_subdivision(self)
+            return permissions['manage']
+        
         return False
     
     # Для использования в шаблонах
     def user_can_add_product(self, user):
         """Альтернативный метод для шаблонов"""
-        return self.can_add_product(user)
+        return self.can_user_add_product(user)
 
 class Product(models.Model):
     """Модель неликвидной продукции"""
@@ -225,45 +347,52 @@ class Product(models.Model):
         if not is_new:
             # Логирование изменения
             pass
-
+    
+    def can_view(self, user):
+        """Может ли пользователь просматривать продукт"""
+        if not user.is_authenticated:
+            return True  # Неавторизованные могут только просматривать
+        
+        if user.is_superuser:
+            return True
+        
+        return self.subdivision.can_user_view(user)
+    
     def can_edit(self, user):
-        """Проверяет, может ли пользователь редактировать продукт"""
+        """Может ли пользователь редактировать продукт"""
         if not user.is_authenticated:
             return False
         
         if user.is_superuser:
             return True
         
-        # Руководитель подразделения
-        if self.subdivision.manager == user:
-            return True
-        
-        # Создатель продукта
-        if self.created_by == user:
-            return True
-        
-        # Проверка через группы
-        if user.groups.filter(name__in=['Super_Admin', 'Subdivision_Admin']).exists():
-            return True
-        
-        # Editor может редактировать только свои продукты
-        if user.groups.filter(name='Editor').exists() and self.created_by == user:
-            return True
+        # Проверяем права через профиль
+        if hasattr(user, 'profile'):
+            permissions = user.profile.get_user_permissions_in_subdivision(self.subdivision)
             
+            # Editor и Subdivision_Admin могут редактировать любые записи в своем подразделении
+            if permissions['edit_any']:
+                return True
+            
+            # Если пользователь создал эту запись и имеет право на добавление
+            if permissions['add'] and self.created_by == user:
+                return True
+        
         return False
     
     def can_delete(self, user):
-        """Проверяет, может ли пользователь удалить продукт"""
+        """Может ли пользователь удалить продукт"""
         if not user.is_authenticated:
             return False
         
         if user.is_superuser:
             return True
         
-        # Только супер-админы и администраторы подразделений могут удалять
-        if user.groups.filter(name__in=['Super_Admin', 'Subdivision_Admin']).exists():
-            return True
-            
+        # Проверяем права через профиль
+        if hasattr(user, 'profile'):
+            permissions = user.profile.get_user_permissions_in_subdivision(self.subdivision)
+            return permissions['delete']
+        
         return False
 
 class ProductImage(models.Model):

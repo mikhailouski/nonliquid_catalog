@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User, Group
-from apps.catalog.models import Subdivision
+from apps.catalog.models import Subdivision, Profile
 
 class Command(BaseCommand):
     help = 'Создает тестовых пользователей для демонстрации'
@@ -17,13 +17,23 @@ class Command(BaseCommand):
                 'first_name': 'Иван',
                 'last_name': 'Смотров',
                 'groups': ['Viewer'],
+                'subdivision_code': None,  # Viewer без подразделения
             },
             {
-                'username': 'editor_user',
-                'email': 'editor@example.com',
+                'username': 'editor_sklad',
+                'email': 'editor_sklad@example.com',
                 'first_name': 'Петр',
-                'last_name': 'Редакторов',
+                'last_name': 'Складов',
                 'groups': ['Editor'],
+                'subdivision_code': 'SKLAD',
+            },
+            {
+                'username': 'editor_ceh1',
+                'email': 'editor_ceh1@example.com',
+                'first_name': 'Алексей',
+                'last_name': 'Цехов',
+                'groups': ['Editor'],
+                'subdivision_code': 'CEH-01',
             },
             {
                 'username': 'admin_ceh1',
@@ -31,6 +41,7 @@ class Command(BaseCommand):
                 'first_name': 'Анна',
                 'last_name': 'Цехова',
                 'groups': ['Subdivision_Admin'],
+                'subdivision_code': 'CEH-01',
             },
             {
                 'username': 'admin_ceh2',
@@ -38,6 +49,7 @@ class Command(BaseCommand):
                 'first_name': 'Сергей',
                 'last_name': 'Складской',
                 'groups': ['Subdivision_Admin'],
+                'subdivision_code': 'CEH-02',
             },
             {
                 'username': 'super_admin',
@@ -45,6 +57,7 @@ class Command(BaseCommand):
                 'first_name': 'Администратор',
                 'last_name': 'Системный',
                 'groups': ['Super_Admin'],
+                'subdivision_code': None,  # Супер-админ видит все
             },
         ]
 
@@ -69,6 +82,25 @@ class Command(BaseCommand):
                 self.stdout.write(
                     self.style.WARNING(f'Пользователь {user_data["username"]} уже существует')
                 )
+
+            # Создаем или обновляем профиль
+            profile, profile_created = Profile.objects.get_or_create(user=user)
+            
+            # Привязываем к подразделению, если указано
+            if user_data['subdivision_code']:
+                try:
+                    subdivision = Subdivision.objects.get(code=user_data['subdivision_code'])
+                    profile.subdivision = subdivision
+                    profile.save()
+                    
+                    if profile_created:
+                        self.stdout.write(
+                            self.style.SUCCESS(f'Пользователь {user_data["username"]} привязан к {subdivision.code}')
+                        )
+                except Subdivision.DoesNotExist:
+                    self.stdout.write(
+                        self.style.ERROR(f'Подразделение {user_data["subdivision_code"]} не найдено')
+                    )
 
             # Назначаем группы
             for group_name in user_data['groups']:
@@ -98,7 +130,7 @@ class Command(BaseCommand):
             {
                 'code': 'SKLAD',
                 'name': 'Склад готовой продукции',
-                'manager_username': 'editor_user',
+                'manager_username': 'editor_sklad',
             },
         ]
 
@@ -137,7 +169,7 @@ class Command(BaseCommand):
             self.style.NOTICE('\nДанные для входа:')
         )
         self.stdout.write(
-            self.style.NOTICE('Логин: viewer_user, editor_user, admin_ceh1, admin_ceh2, super_admin')
+            self.style.NOTICE('Логин: viewer_user, editor_sklad, editor_ceh1, admin_ceh1, admin_ceh2, super_admin')
         )
         self.stdout.write(
             self.style.NOTICE('Пароль для всех: testpass123')

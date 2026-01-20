@@ -29,7 +29,7 @@ def status_class(status):
 @register.filter
 def can_add_product(subdivision, user):
     """Проверяет, может ли пользователь добавлять продукты в подразделение"""
-    return subdivision.can_add_product(user)    
+    return subdivision.can_user_add_product(user)    
 
 @register.filter
 def highlight(text, query):
