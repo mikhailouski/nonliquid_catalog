@@ -32,7 +32,7 @@ def can_add_to_subdivision(view_func):
         subdivision_code = kwargs.get('subdivision_code')
         subdivision = get_object_or_404(Subdivision, code=subdivision_code)
         
-        if not subdivision.can_add_product(request.user):
+        if not subdivision.can_user_add_product(request.user):
             raise PermissionDenied("У вас нет прав для добавления продуктов в это подразделение")
         
         return view_func(request, *args, **kwargs)

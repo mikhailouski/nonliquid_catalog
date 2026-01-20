@@ -19,6 +19,27 @@
                     </div>
                     <h5>{{ user.get_full_name|default:user.username }}</h5>
                     <p class="text-muted">{{ user.email }}</p>
+                    
+                    <!-- Информация о подразделении -->
+                    {% if user.profile.subdivision %}
+                    <div class="alert alert-info mt-3">
+                        <i class="bi bi-building"></i>
+                        <strong>Подразделение:</strong> 
+                        <a href="{% url 'subdivision_products' user.profile.subdivision.code %}" class="text-decoration-none">
+                            {{ user.profile.subdivision.name }} ({{ user.profile.subdivision.code }})
+                        </a>
+                        {% if user.profile.position %}
+                        <br>
+                        <i class="bi bi-briefcase"></i>
+                        <strong>Должность:</strong> {{ user.profile.position }}
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning mt-3">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        Вы не привязаны к подразделению. Доступ только для просмотра.
+                    </div>
+                    {% endif %}
                 </div>
                 
                 <div class="list-group list-group-flush">
@@ -34,6 +55,12 @@
                         <span>Создано записей:</span>
                         <strong>{{ created_products }}</strong>
                     </div>
+                    {% if user.profile.phone %}
+                    <div class="list-group-item d-flex justify-content-between">
+                        <span>Телефон:</span>
+                        <strong>{{ user.profile.phone }}</strong>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -75,7 +102,7 @@
                                     {% if group.name == 'Viewer' %}
                                     Просмотр каталога без возможности редактирования
                                     {% elif group.name == 'Editor' %}
-                                    Добавление и редактирование собственных записей
+                                    Создание и редактирование записей в своем подразделении
                                     {% elif group.name == 'Subdivision_Admin' %}
                                     Полный доступ к своему подразделению
                                     {% elif group.name == 'Super_Admin' %}
@@ -88,17 +115,26 @@
                     {% endfor %}
                 </div>
                 
-                <div class="mt-3">
-                    <h6>Разрешения:</h6>
-                    <ul class="list-unstyled">
-                        {% for group in groups %}
-                            {% for permission in group.permissions.all %}
-                            <li class="mb-1">
-                                <i class="bi bi-check-circle text-success"></i>
-                                <small>{{ permission.name }}</small>
-                            </li>
-                            {% endfor %}
-                        {% endfor %}
+                <!-- Дополнительная информация о правах -->
+                <div class="alert alert-info mt-3">
+                    <h6><i class="bi bi-info-circle"></i> Ваши права:</h6>
+                    <ul class="mb-0">
+                        {% if user.profile.subdivision %}
+                        <li>Вы можете работать в подразделении: <strong>{{ user.profile.subdivision.name }}</strong></li>
+                        {% endif %}
+                        
+                        <!-- Используем кастомный тег для проверки групп -->
+                        {% if is_editor %}
+                        <li>Вы можете создавать и редактировать записи в своем подразделении</li>
+                        {% endif %}
+
+                        {% if is_subdivision_admin %}
+                        <li>Вы можете управлять всеми записями в своем подразделении</li>
+                        {% endif %}
+
+                        {% if user.is_superuser or is_super_admin %}
+                        <li>Вы имеете полный доступ ко всем подразделениям</li>
+                        {% endif %}
                     </ul>
                 </div>
                 {% else %}
@@ -123,12 +159,19 @@
             </div>
             <div class="card-body">
                 <div class="row g-2">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <a href="{% url 'home' %}" class="btn btn-outline-primary w-100">
                             <i class="bi bi-house"></i> На главную
                         </a>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
+                        {% if user.profile.subdivision %}
+                        <a href="{% url 'subdivision_products' user.profile.subdivision.code %}" class="btn btn-outline-success w-100">
+                            <i class="bi bi-building"></i> Мое подразделение
+                        </a>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4">
                         {% if user.is_superuser %}
                         <a href="/admin/" class="btn btn-outline-danger w-100" target="_blank">
                             <i class="bi bi-gear"></i> Панель администратора

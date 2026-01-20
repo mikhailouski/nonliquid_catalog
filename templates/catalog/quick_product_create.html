@@ -1,0 +1,174 @@
+{% extends 'base.html' %}
+
+{% block title %}Быстрое добавление неликвида{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="bi bi-lightning"></i> Быстрое добавление неликвида
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info mb-4">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Быстрый режим:</strong> Заполните только обязательные поля. 
+                    Изображения можно добавить позже на странице продукта.
+                </div>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <!-- Поле Код продукции -->
+                    <div class="mb-3">
+                        <label for="{{ form.code.id_for_label }}" class="form-label">
+                            Код продукции *
+                        </label>
+                        {{ form.code }}
+                        {% if form.code.help_text %}
+                        <div class="form-text">{{ form.code.help_text }}</div>
+                        {% endif %}
+                        {% if form.code.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.code.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Поле Наименование -->
+                    <div class="mb-3">
+                        <label for="{{ form.name.id_for_label }}" class="form-label">
+                            Наименование *
+                        </label>
+                        {{ form.name }}
+                        {% if form.name.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.name.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Поле Подразделение -->
+                    <div class="mb-3">
+                        <label for="{{ form.subdivision.id_for_label }}" class="form-label">
+                            Подразделение *
+                        </label>
+                        {{ form.subdivision }}
+                        {% if form.subdivision.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.subdivision.errors %}
+                            <div class="text-danger">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Остальные поля -->
+                    {% for field in form %}
+                        {% if field.name != 'code' and field.name != 'name' and field.name != 'subdivision' and field.name != 'characteristics' and field.name != 'notes' %}
+                        <div class="mb-3">
+                            <label for="{{ field.id_for_label }}" class="form-label">
+                                {{ field.label }}
+                            </label>
+                            {{ field }}
+                            {% if field.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in field.errors %}
+                                <div class="text-danger">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <div>
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle"></i> Сохранить
+                            </button>
+                            <a href="{% url 'subdivision_products' subdivision.code %}" 
+                               class="btn btn-secondary">
+                                <i class="bi bi-x-circle"></i> Отмена
+                            </a>
+                        </div>
+                        
+                        <a href="{% url 'product_create_with_images' subdivision.code %}" 
+                           class="btn btn-outline-primary">
+                            <i class="bi bi-images"></i> Расширенный режим
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // =========== ПРОВЕРКА УНИКАЛЬНОСТИ КОДА ===========
+        // Проверка уникальности кода при вводе
+        const codeField = document.getElementById('{{ form.code.id_for_label }}');
+        
+        if (codeField) {
+            codeField.addEventListener('blur', function() {
+                const code = this.value.trim();
+                if (code) {
+                    // Показываем индикатор загрузки
+                    const originalBorder = this.style.borderColor;
+                    this.style.borderColor = '#ffc107';
+                    
+                    fetch(`/check-code/{{ subdivision.code }}/?code=${encodeURIComponent(code)}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.valid) {
+                                this.style.borderColor = '#198754'; // зеленый
+                            } else {
+                                this.style.borderColor = '#dc3545'; // красный
+                                
+                                // Создаем или обновляем элемент с ошибкой
+                                let errorDiv = this.parentElement.querySelector('.code-validation-error');
+                                if (!errorDiv) {
+                                    errorDiv = document.createElement('div');
+                                    errorDiv.className = 'code-validation-error invalid-feedback d-block';
+                                    this.parentElement.appendChild(errorDiv);
+                                }
+                                errorDiv.innerHTML = `<div class="text-danger">${data.message}</div>`;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Ошибка проверки кода:', error);
+                            this.style.borderColor = originalBorder;
+                        })
+                        .finally(() => {
+                            // Через 2 секунды возвращаем стандартный цвет
+                            setTimeout(() => {
+                                this.style.borderColor = '';
+                            }, 2000);
+                        });
+                }
+            });
+            
+            // Сбрасываем цвет при фокусе
+            codeField.addEventListener('focus', function() {
+                this.style.borderColor = '';
+                
+                // Удаляем сообщение об ошибке
+                const errorDiv = this.parentElement.querySelector('.code-validation-error');
+                if (errorDiv) {
+                    errorDiv.remove();
+                }
+            });
+        }
+        // =========== КОНЕЦ ПРОВЕРКИ УНИКАЛЬНОСТИ ===========
+    });
+</script>
+{% endblock %}

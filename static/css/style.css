@@ -194,3 +194,201 @@ body {
     background-color: #f8f9fa;
     border-left: 4px solid var(--primary-color);
 }
+
+.highlight {
+    background-color: #fff3cd;
+    padding: 0 2px;
+    border-radius: 2px;
+    font-weight: bold;
+}
+
+/* Стили для загрузки изображений */
+
+.upload-area {
+    border: 2px dashed #dee2e6;
+    border-radius: 0.5rem;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background-color: #f8f9fa;
+    min-height: 150px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.upload-area:hover {
+    border-color: #0d6efd;
+    background-color: #e7f1ff;
+}
+
+.upload-area.dragover {
+    border-color: #198754;
+    background-color: #d1e7dd;
+    transform: scale(1.02);
+}
+
+.upload-area i {
+    font-size: 2.5rem;
+    color: #6c757d;
+    margin-bottom: 0.5rem;
+}
+
+.image-preview {
+    position: relative;
+    margin-bottom: 1rem;
+    transition: transform 0.2s ease;
+}
+
+.image-preview:hover {
+    transform: translateY(-2px);
+}
+
+.image-preview img {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+    border-radius: 0.375rem;
+    border: 1px solid #dee2e6;
+}
+
+.image-preview .remove-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: rgba(220, 53, 69, 0.9);
+    color: white;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    opacity: 0;
+}
+
+.image-preview:hover .remove-btn {
+    opacity: 1;
+}
+
+.image-preview .remove-btn:hover {
+    background-color: #dc3545;
+    transform: scale(1.1);
+}
+
+.file-info {
+    padding: 0.25rem;
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 0.25rem;
+    margin-top: 0.25rem;
+}
+
+/* Прогресс бар для загрузки */
+.upload-progress {
+    height: 20px;
+    margin-top: 1rem;
+    border-radius: 10px;
+    overflow: hidden;
+    background-color: #e9ecef;
+}
+
+.upload-progress-bar {
+    height: 100%;
+    background-color: #0d6efd;
+    transition: width 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+
+/* Уведомления о загрузке */
+.upload-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1050;
+    min-width: 300px;
+    max-width: 500px;
+}
+
+/* Анимации */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.pulse {
+    animation: pulse 2s infinite;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .upload-area {
+        padding: 1rem;
+        min-height: 120px;
+    }
+    
+    .upload-area i {
+        font-size: 2rem;
+    }
+    
+    .image-preview img {
+        height: 120px;
+    }
+}
+
+/* Стили для валидации формы */
+.was-validated .form-control:valid {
+    border-color: #198754;
+}
+
+.was-validated .form-control:invalid {
+    border-color: #dc3545;
+}
+
+/* Анимация для проверки кода */
+@keyframes pulse-border {
+    0% { border-color: #ffc107; }
+    50% { border-color: #fd7e14; }
+    100% { border-color: #ffc107; }
+}
+
+.checking-code {
+    animation: pulse-border 1s infinite;
+}
+
+/* Стили для сообщений об ошибках */
+.code-validation-error {
+    font-size: 0.875em;
+    margin-top: 0.25rem;
+}
+
+/* Индикатор загрузки */
+.loading-spinner {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

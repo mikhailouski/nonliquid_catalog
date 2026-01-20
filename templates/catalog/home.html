@@ -142,9 +142,9 @@
                     {% for subdivision in subdivisions %}
                         {% if subdivision|can_add_product:user %}
                         <div class="col-md-4">
-                            <a href="{% url 'product_create' subdivision.code %}" 
-                               class="btn btn-success w-100">
-                                <i class="bi bi-plus-circle"></i> Добавить в {{ subdivision.code }}
+                            <a href="{% url 'product_create_with_images' subdivision.code %}" 
+                                class="btn btn-success w-100">
+                                    <i class="bi bi-plus-circle"></i> Добавить в {{ subdivision.code }}
                             </a>
                         </div>
                         {% endif %}

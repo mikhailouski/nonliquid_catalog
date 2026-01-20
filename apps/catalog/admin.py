@@ -2,7 +2,178 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-from .models import Subdivision, Product, ProductImage, ChangeLog
+from django import forms
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth.models import User
+from .models import Profile, Subdivision, Product, ProductImage, ChangeLog
+
+class ProfileInline(admin.StackedInline):
+    """Inline для отображения профиля в админке пользователя"""
+    model = Profile
+    can_delete = False
+    verbose_name_plural = 'Профиль'
+    fk_name = 'user'
+    
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """Ограничиваем выбор подразделений только теми, где пользователь не является членом"""
+        if db_field.name == "subdivision":
+            # Получаем текущего пользователя (если редактируем существующего)
+            if request.resolver_match.kwargs.get('object_id'):
+                user_id = request.resolver_match.kwargs['object_id']
+                current_profile = Profile.objects.filter(user_id=user_id).first()
+                if current_profile and current_profile.subdivision:
+                    # Исключаем текущее подразделение из queryset
+                    kwargs["queryset"] = Subdivision.objects.exclude(
+                        id=current_profile.subdivision.id
+                    )
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+class UserAdmin(BaseUserAdmin):
+    """Кастомная админка пользователей с отображением подразделения"""
+    inlines = [ProfileInline]
+    list_display = BaseUserAdmin.list_display + ('get_subdivision', 'get_groups_display')
+    
+    def get_subdivision(self, obj):
+        """Получить подразделение пользователя"""
+        if hasattr(obj, 'profile') and obj.profile.subdivision:
+            url = reverse('admin:catalog_subdivision_change', args=[obj.profile.subdivision.id])
+            return format_html('<a href="{}">{}</a>', url, obj.profile.subdivision)
+        return "—"
+    get_subdivision.short_description = "Подразделение"
+    
+    def get_groups_display(self, obj):
+        """Отобразить группы пользователя"""
+        groups = obj.groups.all()
+        if groups:
+            return ", ".join([group.name for group in groups])
+        return "—"
+    get_groups_display.short_description = "Группы"
+    
+    def get_inline_instances(self, request, obj=None):
+        """Показываем inline только при редактировании существующего пользователя"""
+        if not obj:
+            return []
+        return super().get_inline_instances(request, obj)
+
+# Перерегистрируем UserAdmin
+admin.site.unregister(User)
+admin.site.register(User, UserAdmin)
+
+class SubdivisionMemberInline(admin.TabularInline):
+    """Inline для отображения членов подразделения"""
+    model = Profile
+    verbose_name = "Член подразделения"
+    verbose_name_plural = "Члены подразделения"
+    fields = ['user_link', 'phone', 'position']
+    readonly_fields = ['user_link']
+    extra = 0
+    can_delete = False
+    
+    def user_link(self, obj):
+        url = reverse('admin:auth_user_change', args=[obj.user.id])
+        return format_html('<a href="{}">{}</a>', url, obj.user.get_full_name() or obj.user.username)
+    user_link.short_description = "Пользователь"
+    
+    def has_add_permission(self, request, obj):
+        return False
+
+class SubdivisionAdminForm(forms.ModelForm):
+    """Форма подразделения с возможностью добавления пользователя"""
+    add_user = forms.ModelChoiceField(
+        queryset=User.objects.filter(profile__subdivision__isnull=True),
+        required=False,
+        label="Добавить пользователя в подразделение",
+        help_text="Выберите пользователя, который еще не привязан к другому подразделению"
+    )
+    
+    class Meta:
+        model = Subdivision
+        fields = '__all__'
+
+@admin.register(Subdivision)
+class SubdivisionAdmin(admin.ModelAdmin):
+    form = SubdivisionAdminForm
+    list_display = ['code', 'name', 'manager', 'product_count', 'member_count', 'created_at']
+    list_filter = ['created_at']
+    search_fields = ['code', 'name', 'description']
+    readonly_fields = ['created_at', 'updated_at']
+    inlines = [SubdivisionMemberInline]
+    fieldsets = (
+        ('Основная информация', {
+            'fields': ('code', 'name', 'description', 'manager')
+        }),
+        ('Управление пользователями', {
+            'fields': ('add_user',),
+            'classes': ('collapse',)
+        }),
+        ('Даты', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def member_count(self, obj):
+        count = obj.members.count()
+        return format_html('<strong>{}</strong>', count)
+    member_count.short_description = "Кол-во членов"
+    
+    def product_count(self, obj):
+        count = obj.product_count()
+        url = reverse('admin:catalog_product_changelist') + f'?subdivision__id__exact={obj.id}'
+        return format_html('<a href="{}">{}</a>', url, count)
+    product_count.short_description = "Кол-во неликвидов"
+    
+    def save_model(self, request, obj, form, change):
+        # Сохраняем подразделение
+        super().save_model(request, obj, form, change)
+        
+        # Добавляем пользователя в подразделение, если выбран
+        add_user = form.cleaned_data.get('add_user')
+        if add_user:
+            # Создаем или обновляем профиль пользователя
+            profile, created = Profile.objects.get_or_create(user=add_user)
+            profile.subdivision = obj
+            profile.save()
+            
+            # Логируем действие
+            from django.contrib import messages
+            messages.success(
+                request, 
+                f'Пользователь {add_user.username} добавлен в подразделение {obj.name}'
+            )
+
+@admin.register(Profile)
+class ProfileAdmin(admin.ModelAdmin):
+    list_display = ['user', 'subdivision', 'phone', 'position', 'created_at']
+    list_filter = ['subdivision', 'created_at']
+    search_fields = ['user__username', 'user__email', 'phone', 'position']
+    readonly_fields = ['created_at', 'updated_at']
+    fieldsets = (
+        ('Основная информация', {
+            'fields': ('user', 'subdivision')
+        }),
+        ('Контактная информация', {
+            'fields': ('phone', 'position')
+        }),
+        ('Даты', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        """Ограничиваем выбор подразделений"""
+        if db_field.name == "subdivision":
+            # Если редактируем существующий профиль
+            if request.resolver_match.kwargs.get('object_id'):
+                profile_id = request.resolver_match.kwargs['object_id']
+                current_profile = Profile.objects.filter(id=profile_id).first()
+                if current_profile and current_profile.subdivision:
+                    # Исключаем текущее подразделение из queryset
+                    kwargs["queryset"] = Subdivision.objects.exclude(
+                        id=current_profile.subdivision.id
+                    )
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 class ProductImageInline(admin.TabularInline):
     model = ProductImage
@@ -27,28 +198,6 @@ class ChangeLogInline(admin.TabularInline):
     
     def has_add_permission(self, request, obj=None):
         return False
-
-@admin.register(Subdivision)
-class SubdivisionAdmin(admin.ModelAdmin):
-    list_display = ['code', 'name', 'manager', 'product_count', 'created_at']
-    list_filter = ['created_at']
-    search_fields = ['code', 'name', 'description']
-    readonly_fields = ['created_at', 'updated_at']
-    fieldsets = (
-        ('Основная информация', {
-            'fields': ('code', 'name', 'description', 'manager')
-        }),
-        ('Даты', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
-    )
-    
-    def product_count(self, obj):
-        count = obj.product_count()
-        url = reverse('admin:catalog_product_changelist') + f'?subdivision__id__exact={obj.id}'
-        return format_html('<a href="{}">{}</a>', url, count)
-    product_count.short_description = "Кол-во неликвидов"
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):

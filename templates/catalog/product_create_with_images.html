@@ -1,0 +1,489 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Добавить неликвид с изображениями{% endblock %}
+
+{% block extra_css %}
+<style>
+    .upload-area {
+        border: 2px dashed #dee2e6;
+        border-radius: 0.5rem;
+        padding: 2rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background-color: #f8f9fa;
+    }
+    
+    .upload-area:hover {
+        border-color: #0d6efd;
+        background-color: #e7f1ff;
+    }
+    
+    .upload-area.dragover {
+        border-color: #198754;
+        background-color: #d1e7dd;
+    }
+    
+    .image-preview {
+        position: relative;
+        margin-bottom: 1rem;
+    }
+    
+    .image-preview img {
+        max-width: 100%;
+        height: 150px;
+        object-fit: cover;
+        border-radius: 0.25rem;
+    }
+    
+    .image-preview .remove-btn {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background-color: rgba(220, 53, 69, 0.9);
+        color: white;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+    
+    .image-preview .remove-btn:hover {
+        background-color: #dc3545;
+    }
+    
+    #image-preview-container {
+        min-height: 100px;
+    }
+    
+    .file-info {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin-top: 0.25rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'home' %}">Главная</a></li>
+                <li class="breadcrumb-item">
+                    <a href="{% url 'subdivision_products' subdivision.code %}">
+                        {{ subdivision.name }}
+                    </a>
+                </li>
+                <li class="breadcrumb-item active">Добавить неликвид</li>
+            </ol>
+        </nav>
+        
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">
+                    <i class="bi bi-plus-circle"></i> Добавить новый неликвид
+                    <small class="text-muted">с загрузкой изображений</small>
+                </h4>
+            </div>
+            <div class="card-body">
+                <!-- Основная форма для данных продукта -->
+                <form method="post" enctype="multipart/form-data" id="product-form">
+                    {% csrf_token %}
+                    
+                    <!-- Скрытый input для файлов -->
+                    <input type="file" 
+                           name="images" 
+                           id="image-upload" 
+                           multiple 
+                           accept="image/*" 
+                           class="d-none">
+                    
+                    <div class="row">
+                        <!-- Основная информация -->
+                        <div class="col-lg-6">
+                            <h5 class="mb-3"><i class="bi bi-info-circle"></i> Основная информация</h5>
+                            
+                            <!-- Поле Код продукции -->
+                            <div class="mb-3">
+                                <label for="{{ form.code.id_for_label }}" class="form-label">
+                                    Код продукции *
+                                </label>
+                                {{ form.code }}
+                                {% if form.code.help_text %}
+                                <div class="form-text">{{ form.code.help_text }}</div>
+                                {% endif %}
+                                {% if form.code.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.code.errors %}
+                                    <div class="text-danger">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Остальные поля кроме images и characteristics -->
+                            {% for field in form %}
+                                {% if field.name != 'images' and field.name != 'characteristics' and field.name != 'code' %}
+                                <div class="mb-3">
+                                    <label for="{{ field.id_for_label }}" class="form-label">
+                                        {{ field.label }}
+                                        {% if field.field.required %}<span class="text-danger">*</span>{% endif %}
+                                    </label>
+                                    {{ field }}
+                                    {% if field.help_text %}
+                                    <div class="form-text">{{ field.help_text }}</div>
+                                    {% endif %}
+                                    {% if field.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in field.errors %}
+                                        <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                        
+                        <!-- Изображения и характеристики -->
+                        <div class="col-lg-6">
+                            <!-- Загрузка изображений -->
+                            <div class="mb-4">
+                                <h5 class="mb-3"><i class="bi bi-images"></i> Изображения</h5>
+                                
+                                <div class="upload-area mb-3" id="upload-area">
+                                    <i class="bi bi-cloud-arrow-up" style="font-size: 2.5rem; color: #6c757d;"></i>
+                                    <p class="mt-3 mb-1">Перетащите сюда изображения или</p>
+                                    <button type="button" class="btn btn-outline-primary btn-sm" id="browse-btn">
+                                        Выберите файлы
+                                    </button>
+                                    <p class="text-muted small mt-2 mb-0">
+                                        Максимальный размер: 10MB. Допустимые форматы: JPG, PNG, GIF, BMP
+                                    </p>
+                                    <p class="text-muted small mt-1" id="file-counter">
+                                        Выбрано файлов: 0
+                                    </p>
+                                </div>
+                                
+                                <!-- Превью изображений -->
+                                <div id="image-preview-container" class="row">
+                                    <!-- Здесь будут появляться превью -->
+                                </div>
+                                
+                                {% if form.images.errors %}
+                                <div class="alert alert-danger mt-2">
+                                    {{ form.images.errors }}
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Характеристики -->
+                            <div class="mb-3">
+                                <h5><i class="bi bi-list-check"></i> Характеристики</h5>
+                                <div class="mb-3">
+                                    {{ form.characteristics }}
+                                    {% if form.characteristics.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.characteristics.errors %}
+                                        <div class="text-danger">{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                    <div class="form-text">
+                                        Введите характеристики в формате JSON. Пример: {"цвет": "красный", "размер": "10x20 см"}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="border-top pt-4 mt-4">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <button type="submit" class="btn btn-success btn-lg">
+                                    <i class="bi bi-check-circle"></i> Сохранить продукт
+                                </button>
+                                <a href="{% url 'subdivision_products' subdivision.code %}" 
+                                   class="btn btn-secondary">
+                                    <i class="bi bi-x-circle"></i> Отмена
+                                </a>
+                            </div>
+                            
+                            <div>
+                                <a href="{% url 'quick_product_create' subdivision.code %}" 
+                                   class="btn btn-outline-primary">
+                                    <i class="bi bi-lightning"></i> Быстрое добавление
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('image-upload');
+        const browseBtn = document.getElementById('browse-btn');
+        const previewContainer = document.getElementById('image-preview-container');
+        const fileCounter = document.getElementById('file-counter');
+        const form = document.getElementById('product-form');
+        
+        // Массив для хранения выбранных файлов
+        let selectedFiles = [];
+        
+        // Открыть диалог выбора файлов
+        browseBtn.addEventListener('click', function() {
+            fileInput.click();
+        });
+        
+        uploadArea.addEventListener('click', function() {
+            fileInput.click();
+        });
+        
+        // Drag and drop events
+        uploadArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            this.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            this.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.classList.remove('dragover');
+            
+            if (e.dataTransfer.files.length) {
+                handleFiles(e.dataTransfer.files);
+            }
+        });
+        
+        // Обработка выбора файлов
+        fileInput.addEventListener('change', function() {
+            if (this.files.length) {
+                handleFiles(this.files);
+            }
+        });
+        
+        // Функция обработки файлов
+        function handleFiles(files) {
+            for (let file of files) {
+                // Проверка типа файла
+                if (!file.type.startsWith('image/')) {
+                    alert(`Файл "${file.name}" не является изображением`);
+                    continue;
+                }
+                
+                // Проверка размера (10MB)
+                if (file.size > 10 * 1024 * 1024) {
+                    alert(`Файл "${file.name}" слишком большой. Максимальный размер: 10MB`);
+                    continue;
+                }
+                
+                // Добавляем файл в массив
+                selectedFiles.push(file);
+                
+                // Создаем превью
+                createPreview(file);
+            }
+            
+            updateFileCounter();
+            updateFileInput();
+        }
+        
+        // Создание превью изображения
+        function createPreview(file) {
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                const col = document.createElement('div');
+                col.className = 'col-6 col-md-4 col-lg-3 mb-3';
+                
+                const previewDiv = document.createElement('div');
+                previewDiv.className = 'image-preview';
+                
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.className = 'img-fluid rounded';
+                img.alt = file.name;
+                
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'remove-btn';
+                removeBtn.innerHTML = '<i class="bi bi-x"></i>';
+                removeBtn.title = 'Удалить';
+                
+                // Информация о файле
+                const fileInfo = document.createElement('div');
+                fileInfo.className = 'file-info';
+                fileInfo.innerHTML = `
+                    <div class="text-truncate">${file.name}</div>
+                    <div>${formatBytes(file.size)}</div>
+                `;
+                
+                // Обработчик удаления
+                removeBtn.addEventListener('click', function() {
+                    // Удаляем файл из массива
+                    const index = selectedFiles.findIndex(f => f.name === file.name && f.size === file.size);
+                    if (index > -1) {
+                        selectedFiles.splice(index, 1);
+                    }
+                    
+                    // Удаляем превью
+                    col.remove();
+                    
+                    updateFileCounter();
+                    updateFileInput();
+                });
+                
+                previewDiv.appendChild(img);
+                previewDiv.appendChild(removeBtn);
+                previewDiv.appendChild(fileInfo);
+                col.appendChild(previewDiv);
+                previewContainer.appendChild(col);
+            };
+            
+            reader.readAsDataURL(file);
+        }
+        
+        // Обновление скрытого input с файлами
+        function updateFileInput() {
+            // Создаем новый DataTransfer
+            const dataTransfer = new DataTransfer();
+            
+            // Добавляем все файлы
+            selectedFiles.forEach(file => {
+                dataTransfer.items.add(file);
+            });
+            
+            // Обновляем file input
+            fileInput.files = dataTransfer.files;
+        }
+        
+        // Обновление счетчика файлов
+        function updateFileCounter() {
+            fileCounter.textContent = `Выбрано файлов: ${selectedFiles.length}`;
+        }
+        
+        // Форматирование размера файла
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+        
+        // Валидация формы перед отправкой
+        form.addEventListener('submit', function(e) {
+            const codeField = document.getElementById('{{ form.code.id_for_label }}');
+            const nameField = document.getElementById('{{ form.name.id_for_label }}');
+            
+            let isValid = true;
+            let errorMessage = '';
+            
+            // Проверка обязательных полей
+            if (!codeField.value.trim()) {
+                isValid = false;
+                errorMessage = 'Поле "Код продукции" обязательно для заполнения';
+                codeField.focus();
+            } else if (!nameField.value.trim()) {
+                isValid = false;
+                errorMessage = 'Поле "Наименование" обязательно для заполнения';
+                nameField.focus();
+            }
+            
+            if (!isValid) {
+                e.preventDefault();
+                alert(errorMessage);
+            }
+        });
+        
+        // Автоматическое заполнение характеристик JSON
+        const characteristicsField = document.getElementById('{{ form.characteristics.id_for_label }}');
+        if (characteristicsField) {
+            characteristicsField.addEventListener('focus', function() {
+                if (!this.value.trim()) {
+                    this.value = '{\n    \n}';
+                    // Установить курсор в нужное место
+                    this.selectionStart = 5;
+                    this.selectionEnd = 5;
+                }
+            });
+        }
+        
+        // =========== ПРОВЕРКА УНИКАЛЬНОСТИ КОДА ===========
+        // Проверка уникальности кода при вводе
+        const codeField = document.getElementById('{{ form.code.id_for_label }}');
+        if (codeField) {
+            codeField.addEventListener('blur', function() {
+                const code = this.value.trim();
+                if (code) {
+                    // Показываем индикатор загрузки
+                    const originalBorder = this.style.borderColor;
+                    this.style.borderColor = '#ffc107';
+                    
+                    fetch(`/check-code/{{ subdivision.code }}/?code=${encodeURIComponent(code)}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.valid) {
+                                this.style.borderColor = '#198754'; // зеленый
+                            } else {
+                                this.style.borderColor = '#dc3545'; // красный
+                                
+                                // Создаем или обновляем элемент с ошибкой
+                                let errorDiv = this.parentElement.querySelector('.code-validation-error');
+                                if (!errorDiv) {
+                                    errorDiv = document.createElement('div');
+                                    errorDiv.className = 'code-validation-error invalid-feedback d-block';
+                                    this.parentElement.appendChild(errorDiv);
+                                }
+                                errorDiv.innerHTML = `<div class="text-danger">${data.message}</div>`;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Ошибка проверки кода:', error);
+                            this.style.borderColor = originalBorder;
+                        })
+                        .finally(() => {
+                            // Через 2 секунды возвращаем стандартный цвет
+                            setTimeout(() => {
+                                this.style.borderColor = '';
+                            }, 2000);
+                        });
+                }
+            });
+            
+            // Сбрасываем цвет при фокусе
+            codeField.addEventListener('focus', function() {
+                this.style.borderColor = '';
+                
+                // Удаляем сообщение об ошибке
+                const errorDiv = this.parentElement.querySelector('.code-validation-error');
+                if (errorDiv) {
+                    errorDiv.remove();
+                }
+            });
+        }
+        // =========== КОНЕЦ ПРОВЕРКИ УНИКАЛЬНОСТИ ===========
+    });
+</script>
+{% endblock %}
