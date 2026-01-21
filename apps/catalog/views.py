@@ -9,15 +9,12 @@ from django.db.models.functions import Lower
 from django.http import JsonResponse, HttpResponseRedirect
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-import json
 import os
 from .models import Subdivision, Product, ProductImage
 from .forms import (
-    ProductForm, ProductImageForm, MultipleImageUploadForm,
+    ProductForm, MultipleImageUploadForm,
     ProductCreateWithImagesForm, 
 )
-from .decorators import can_edit_product, can_delete_product, can_add_to_subdivision
-from .models import Profile
 from django.contrib.auth import logout
 from django.shortcuts import redirect
 from django.contrib import messages

@@ -2,8 +2,6 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
-from django.db.models import Q
-import os
 
 def validate_image_size(value):
     """Валидатор для проверки размера изображения (макс 10MB)"""

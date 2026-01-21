@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
-from .models import Product, ProductImage, Subdivision, User
+from .models import Product, ProductImage
 
 class CustomLoginForm(AuthenticationForm):
     username = forms.CharField(
