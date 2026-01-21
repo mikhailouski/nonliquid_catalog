@@ -27,14 +27,11 @@ function togglePasswordVisibility(inputId) {
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
-    // Автоматическое скрытие alert через 5 секунд
-    setTimeout(function() {
-        const alerts = document.querySelectorAll('.alert:not(.alert-permanent)');
-        alerts.forEach(function(alert) {
-            const bsAlert = new bootstrap.Alert(alert);
-            bsAlert.close();
-        });
-    }, 5000);
+        
+    const alerts = document.querySelectorAll('.alert');
+    alerts.forEach(function(alert) {
+        new bootstrap.Alert(alert);
+    });
     
     // Подсветка активных ссылок в навигации
     const currentPath = window.location.pathname;

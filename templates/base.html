@@ -61,7 +61,8 @@
                                         <i class="bi bi-person"></i> Профиль
                                     </a>
                                 </li>
-                                {% if user.is_superuser or user.groups.all %}
+                                <!-- Показываем кнопку админки только для персонала -->
+                                {% if user.is_staff or user.is_superuser %}
                                 <li>
                                     <a class="dropdown-item" href="/admin/" target="_blank">
                                         <i class="bi bi-gear"></i> Админка
@@ -70,6 +71,7 @@
                                 {% endif %}
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
+                                    <!-- Ссылка на страницу подтверждения выхода -->
                                     <a class="dropdown-item text-danger" href="{% url 'logout' %}">
                                         <i class="bi bi-box-arrow-right"></i> Выйти
                                     </a>
@@ -88,7 +90,7 @@
         </div>
     </nav>
 
-    <!-- Сообщения -->
+    <!-- Сообщения - БЕЗ автозакрытия -->
     {% if messages %}
     <div class="container mt-3">
         {% for message in messages %}

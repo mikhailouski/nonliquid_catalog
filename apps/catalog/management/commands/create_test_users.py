@@ -17,7 +17,8 @@ class Command(BaseCommand):
                 'first_name': 'Иван',
                 'last_name': 'Смотров',
                 'groups': ['Viewer'],
-                'subdivision_code': None,  # Viewer без подразделения
+                'subdivision_code': None,
+                'is_staff': False,
             },
             {
                 'username': 'editor_sklad',
@@ -26,6 +27,7 @@ class Command(BaseCommand):
                 'last_name': 'Складов',
                 'groups': ['Editor'],
                 'subdivision_code': 'SKLAD',
+                'is_staff': False,
             },
             {
                 'username': 'editor_ceh1',
@@ -34,6 +36,7 @@ class Command(BaseCommand):
                 'last_name': 'Цехов',
                 'groups': ['Editor'],
                 'subdivision_code': 'CEH-01',
+                'is_staff': False,
             },
             {
                 'username': 'admin_ceh1',
@@ -42,6 +45,7 @@ class Command(BaseCommand):
                 'last_name': 'Цехова',
                 'groups': ['Subdivision_Admin'],
                 'subdivision_code': 'CEH-01',
+                'is_staff': False,
             },
             {
                 'username': 'admin_ceh2',
@@ -50,6 +54,7 @@ class Command(BaseCommand):
                 'last_name': 'Складской',
                 'groups': ['Subdivision_Admin'],
                 'subdivision_code': 'CEH-02',
+                'is_staff': False,
             },
             {
                 'username': 'super_admin',
@@ -57,31 +62,48 @@ class Command(BaseCommand):
                 'first_name': 'Администратор',
                 'last_name': 'Системный',
                 'groups': ['Super_Admin'],
-                'subdivision_code': None,  # Супер-админ видит все
+                'subdivision_code': None,
+                'is_staff': True,  # Супер-админ - персонал
+                'is_superuser': True,
             },
         ]
 
         for user_data in test_users:
             # Проверяем, существует ли пользователь
+            defaults = {
+                'email': user_data['email'],
+                'first_name': user_data['first_name'],
+                'last_name': user_data['last_name'],
+                'is_staff': user_data.get('is_staff', False),
+            }
+            
+            # Добавляем is_superuser если указано
+            if 'is_superuser' in user_data:
+                defaults['is_superuser'] = user_data['is_superuser']
+            
             user, created = User.objects.get_or_create(
                 username=user_data['username'],
-                defaults={
-                    'email': user_data['email'],
-                    'first_name': user_data['first_name'],
-                    'last_name': user_data['last_name'],
-                }
+                defaults=defaults
             )
 
             if created:
                 user.set_password(password)
                 user.save()
                 self.stdout.write(
-                    self.style.SUCCESS(f'Пользователь {user_data["username"]} создан')
+                    self.style.SUCCESS(f'Пользователь {user_data["username"]} создан (staff: {user.is_staff})')
                 )
             else:
-                self.stdout.write(
-                    self.style.WARNING(f'Пользователь {user_data["username"]} уже существует')
-                )
+                # Обновляем флаг is_staff для существующих пользователей
+                if user.is_staff != user_data.get('is_staff', False):
+                    user.is_staff = user_data.get('is_staff', False)
+                    user.save()
+                    self.stdout.write(
+                        self.style.SUCCESS(f'Пользователь {user_data["username"]} обновлен (staff: {user.is_staff})')
+                    )
+                else:
+                    self.stdout.write(
+                        self.style.WARNING(f'Пользователь {user_data["username"]} уже существует')
+                    )
 
             # Создаем или обновляем профиль
             profile, profile_created = Profile.objects.get_or_create(user=user)

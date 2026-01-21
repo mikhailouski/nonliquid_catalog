@@ -4,11 +4,12 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth import views as auth_views
 from apps.catalog.forms import CustomLoginForm
+from apps.catalog.views import custom_logout, logout_confirmation
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     
-    # ОЧЕНЬ ВАЖНО: login должен быть определен ДО include
+    # Вход
     path('login/', 
          auth_views.LoginView.as_view(
              template_name='catalog/login.html',
@@ -16,9 +17,10 @@ urlpatterns = [
              redirect_authenticated_user=True
          ), 
          name='login'),
-    path('logout/', 
-         auth_views.LogoutView.as_view(next_page='home'), 
-         name='logout'),
+    
+    # Выход - ДОЛЖЕН БЫТЬ ЗДЕСЬ, перед include
+    path('logout/', custom_logout, name='logout'),
+    path('logout/confirmation/', logout_confirmation, name='logout_confirmation'),
     
     # Все остальные пути каталога
     path('', include('apps.catalog.urls')),
