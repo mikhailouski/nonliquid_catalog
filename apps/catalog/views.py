@@ -267,13 +267,25 @@ def upload_product_images(request, product_id):
         form = MultipleImageUploadForm(request.POST, request.FILES)
         if form.is_valid():
             images = form.cleaned_data['images']
+            created_images = []
+            
             for image in images:
-                ProductImage.objects.create(
+                # Создаем ProductImage объект
+                product_image = ProductImage(
                     product=product,
                     image=image,
                     uploaded_by=request.user
                 )
-            messages.success(request, f'{len(images)} изображений успешно загружены!')
+                
+                # Если это первое изображение продукта, делаем его основным
+                if not product.images.exists():
+                    product_image.is_main = True
+                
+                # Сохраняем - это вызовет метод save() и запустит обработку
+                product_image.save()
+                created_images.append(product_image)
+            
+            messages.success(request, f'{len(created_images)} изображений успешно загружены! Обработка запущена.')
             return redirect('product_detail',
                           product_id=product.id,
                           subdivision_code=product.subdivision.code)

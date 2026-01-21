@@ -149,7 +149,7 @@ CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 минут
 # Настройки изображений
 IMAGE_MAX_SIZE = 10 * 1024 * 1024  # 10MB
 IMAGE_ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp']
-IMAGE_THUMBNAIL_SIZE = (200, 200)
+IMAGE_THUMBNAIL_SIZE = (500, 500)
 IMAGE_OPTIMIZED_SIZE = (1920, 1080)
 IMAGE_QUALITY = 85
 
@@ -158,3 +158,15 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 
 ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp']
+
+# Windows-specific Celery settings
+import platform
+if platform.system() == 'Windows':
+    CELERY_WORKER_POOL = 'solo'
+    CELERY_CONCURRENCY = 1
+    # Отключаем prefork для Windows
+    CELERYD_POOL_RESTARTS = True
+
+# Включить мониторинг событий задач
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_SEND_SENT_EVENT = True

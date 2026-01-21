@@ -19,8 +19,8 @@ def create_thumbnail(image_id):
         if img.mode in ('RGBA', 'LA', 'P'):
             img = img.convert('RGB')
         
-        # Создаем миниатюру (200x200)
-        img.thumbnail((200, 200), Image.Resampling.LANCZOS)
+        # Создаем миниатюру (500x500)
+        img.thumbnail((500, 500), Image.Resampling.LANCZOS)
         
         # Сохраняем миниатюру
         thumb_name = f"thumb_{os.path.basename(product_image.image.name)}"

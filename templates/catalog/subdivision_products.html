@@ -89,20 +89,19 @@
         {% for product in products %}
         <div class="col-md-4 mb-4">
             <div class="card h-100">
-                <div class="card-img-top d-flex align-items-center justify-content-center bg-light" style="height: 200px; overflow: hidden;">
-                    {% with product.get_main_image as main_image %}
-                    {% if main_image %}
-                    <img src="{{ main_image.image.url }}" 
-                         alt="{{ product.name }}"
-                         class="img-fluid" 
-                         style="max-height: 100%; max-width: 100%; object-fit: contain;">
+                <div class="card-img-top d-flex align-items-center justify-content-center bg-light" style="height: 300px; overflow: hidden;">
+                    {% if product.get_thumbnail_url %}
+                    <img src="{{ product.get_thumbnail_url }}" 
+                        alt="{{ product.name }}"
+                        class="img-fluid" 
+                        style="height: 300px; width: 100%; object-fit: cover;"
+                        loading="lazy">
                     {% else %}
-                    <div class="text-muted">
-                        <i class="bi bi-image" style="font-size: 3rem;"></i>
-                        <p class="mt-2">Нет изображения</p>
+                    <div class="text-muted d-flex flex-column align-items-center justify-content-center" style="height: 200px;">
+                        <i class="bi bi-image" style="font-size: 2rem;"></i>
+                        <p class="mt-2 small">Нет изображения</p>
                     </div>
                     {% endif %}
-                    {% endwith %}
                 </div>
                 
                 <div class="card-body">
