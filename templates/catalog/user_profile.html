@@ -123,15 +123,15 @@
                         <li>Вы можете работать в подразделении: <strong>{{ user.profile.subdivision.name }}</strong></li>
                         {% endif %}
                         
-                        <!-- Используем кастомный тег для проверки групп -->
+                        <!-- Используем переменные из контекста -->
                         {% if is_editor %}
                         <li>Вы можете создавать и редактировать записи в своем подразделении</li>
                         {% endif %}
-
+                        
                         {% if is_subdivision_admin %}
                         <li>Вы можете управлять всеми записями в своем подразделении</li>
                         {% endif %}
-
+                        
                         {% if user.is_superuser or is_super_admin %}
                         <li>Вы имеете полный доступ ко всем подразделениям</li>
                         {% endif %}
@@ -172,7 +172,8 @@
                         {% endif %}
                     </div>
                     <div class="col-md-4">
-                        {% if user.is_superuser %}
+                        <!-- Показываем кнопку админки только для персонала -->
+                        {% if user.is_staff or user.is_superuser %}
                         <a href="/admin/" class="btn btn-outline-danger w-100" target="_blank">
                             <i class="bi bi-gear"></i> Панель администратора
                         </a>

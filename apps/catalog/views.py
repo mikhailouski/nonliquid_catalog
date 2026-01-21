@@ -18,6 +18,9 @@ from .forms import (
 )
 from .decorators import can_edit_product, can_delete_product, can_add_to_subdivision
 from .models import Profile
+from django.contrib.auth import logout
+from django.shortcuts import redirect
+from django.contrib import messages
 
 class HomeView(ListView):
     """Главная страница - список подразделений"""
@@ -499,7 +502,7 @@ def quick_product_create(request, subdivision_code):
     subdivision = get_object_or_404(Subdivision, code=subdivision_code)
     
     # Проверка прав
-    if not subdivision.can_add_product(request.user):
+    if not subdivision.can_user_add_product(request.user):
         messages.error(
             request, 
             'У вас нет прав для добавления продуктов в это подразделение'
@@ -564,3 +567,19 @@ def check_product_code(request, subdivision_code):
         'valid': not exists,
         'message': 'Код уже используется в этом подразделении' if exists else 'Код доступен'
     })
+
+def custom_logout(request):
+    """Кастомный выход из системы с подтверждением"""
+    if request.method == 'POST':
+        # Выходим из системы
+        logout(request)
+        messages.success(request, 'Вы успешно вышли из системы')
+        # Перенаправляем на страницу подтверждения
+        return redirect('logout_confirmation')
+    
+    # Если GET запрос, показываем форму подтверждения
+    return render(request, 'catalog/logout_confirm.html')
+
+def logout_confirmation(request):
+    """Страница подтверждения выхода"""
+    return render(request, 'catalog/logged_out.html')
