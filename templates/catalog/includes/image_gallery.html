@@ -1,0 +1,33 @@
+{% load catalog_tags %}
+
+<div class="image-gallery" data-product-id="{{ product.id }}">
+    {% if product.images.exists %}
+    <div class="gallery-preview">
+        {% with product.get_main_image as main_image %}
+        <div class="main-image-container">
+            <img src="{% if main_image.thumbnail %}{{ main_image.thumbnail.url }}{% else %}{{ main_image.image.url }}{% endif %}" 
+                 alt="{{ product.name }}"
+                 class="img-fluid rounded gallery-main-image"
+                 data-bs-toggle="modal" 
+                 data-bs-target="#imageGalleryModal-{{ product.id }}"
+                 data-image-index="0">
+            
+            {% if product.images.count > 1 %}
+            <span class="badge bg-primary position-absolute top-0 end-0 m-2">
+                {{ product.images.count }} <i class="bi bi-images"></i>
+            </span>
+            {% endif %}
+        </div>
+        {% endwith %}
+    </div>
+    
+    <!-- Модальное окно для этого продукта -->
+    <div class="modal fade" id="imageGalleryModal-{{ product.id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content">
+                <!-- ... содержимое такое же как в основном модальном окне ... -->
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
