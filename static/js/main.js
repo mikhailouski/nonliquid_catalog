@@ -41,3 +41,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Замена битых изображений на заглушку
+    document.querySelectorAll('img').forEach(img => {
+        img.addEventListener('error', function() {
+            this.src = '/static/images/placeholder.jpg';
+            this.alt = 'Изображение не загружено';
+        });
+    });
+});

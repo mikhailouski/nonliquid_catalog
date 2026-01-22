@@ -2,8 +2,6 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
-from django.db.models import Q
-import os
 
 def validate_image_size(value):
     """Валидатор для проверки размера изображения (макс 10MB)"""
@@ -332,11 +330,21 @@ class Product(models.Model):
         return f"{self.code} - {self.name}"
     
     def get_main_image(self):
-        """Получение основного изображения продукта"""
+        """Получение основного изображения продукта с приоритетом миниатюры"""
         main_image = self.images.filter(is_main=True).first()
-        if main_image:
-            return main_image
-        return self.images.first()
+        if not main_image:
+            main_image = self.images.first()
+        
+        return main_image
+
+    def get_thumbnail_url(self):
+        """Получение URL миниатюры основного изображения"""
+        main_image = self.get_main_image()
+        if main_image and main_image.thumbnail:
+            return main_image.thumbnail.url
+        elif main_image:
+            return main_image.image.url
+        return None
     
     def save(self, *args, **kwargs):
         """Переопределение save для логирования изменений"""
@@ -447,30 +455,36 @@ class ProductImage(models.Model):
         """Переопределение save для обработки изображений"""
         is_new = self.pk is None
         
-        # Если это новое изображение и нет других изображений у продукта,
-        # делаем его основным
-        if is_new and not self.product.images.exists():
-            self.is_main = True
+        # Сохраняем, чтобы получить ID
+        super().save(*args, **kwargs)
+        
+        # После сохранения проверяем, нужно ли устанавливать как основное
+        if is_new:
+            # Если это первое изображение у продукта - делаем основным
+            if not self.product.images.exclude(pk=self.pk).exists():
+                self.is_main = True
+                # Нужно сохранить снова с обновленным is_main
+                super().save(update_fields=['is_main'])
         
         # Проверяем, чтобы было только одно основное изображение
+        # (но это нужно делать только если is_main=True)
         if self.is_main:
             ProductImage.objects.filter(
                 product=self.product, 
                 is_main=True
             ).exclude(pk=self.pk).update(is_main=False)
         
-        super().save(*args, **kwargs)
-        
         # Если это новое изображение, запускаем обработку
         if is_new:
             try:
                 from .tasks import process_product_image
-                process_product_image.delay(self.id)
+                # Запускаем с задержкой 5 секунд, чтобы убедиться, что файл сохранен
+                process_product_image.apply_async((self.id,), countdown=5)
             except Exception as e:
-                # Логируем ошибку, но не прерываем сохранение
                 import logging
                 logger = logging.getLogger(__name__)
-                logger.error(f"Ошибка при запуске обработки изображения: {e}")
+                logger.error(f"Ошибка при запуске обработки изображения {self.id}: {e}")
+                # Сохраняем ошибку в лог, но не прерываем процесс сохранения
 
 class ChangeLog(models.Model):
     """Модель для отслеживания изменений в продуктах"""
