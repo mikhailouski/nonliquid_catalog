@@ -3,6 +3,179 @@
 
 {% block title %}{{ product.name }} - Каталог неликвидов{% endblock %}
 
+{% block extra_css %}
+<style>
+    /* Стили для галереи */
+    .gallery-thumbnail {
+        cursor: pointer;
+        transition: transform 0.2s ease;
+        border: 2px solid transparent;
+    }
+    
+    .gallery-thumbnail:hover {
+        transform: scale(1.05);
+        border-color: #0d6efd;
+    }
+    
+    .gallery-thumbnail.active {
+        border-color: #0d6efd;
+    }
+    
+    /* Модальное окно галереи */
+    .modal-gallery .modal-dialog {
+        max-width: 90vw;
+        max-height: 90vh;
+    }
+    
+    .modal-gallery .modal-content {
+        background-color: rgba(0, 0, 0, 0.9);
+        color: white;
+    }
+    
+    .modal-gallery .modal-body {
+        padding: 0;
+        position: relative;
+        min-height: 70vh;
+    }
+    
+    .gallery-image-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 70vh;
+        padding: 20px;
+    }
+    
+    .gallery-image {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+    }
+    
+    /* Навигационные стрелки */
+    .gallery-nav {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background-color: rgba(0, 0, 0, 0.5);
+        color: white;
+        border: none;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        font-size: 1.5rem;
+        z-index: 1000;
+        opacity: 0.7;
+        transition: opacity 0.3s ease;
+    }
+    
+    .gallery-nav:hover {
+        opacity: 1;
+        background-color: rgba(0, 0, 0, 0.8);
+    }
+    
+    .gallery-prev {
+        left: 20px;
+    }
+    
+    .gallery-next {
+        right: 20px;
+    }
+    
+    /* Панель управления */
+    .gallery-controls {
+        position: absolute;
+        bottom: 20px;
+        left: 0;
+        right: 0;
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        z-index: 1000;
+    }
+    
+    .gallery-controls .btn {
+        background-color: rgba(0, 0, 0, 0.5);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        opacity: 0.8;
+        transition: opacity 0.3s ease;
+    }
+    
+    .gallery-controls .btn:hover {
+        opacity: 1;
+        background-color: rgba(0, 0, 0, 0.7);
+    }
+    
+    /* Индикатор текущего изображения */
+    .gallery-counter {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        background-color: rgba(0, 0, 0, 0.5);
+        color: white;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 0.9rem;
+    }
+    
+    /* Миниатюры под основным изображением */
+    .thumbnail-scroll-container {
+        overflow-x: auto;
+        white-space: nowrap;
+        padding: 10px 0;
+        margin-top: 10px;
+    }
+    
+    .thumbnail-scroll-container::-webkit-scrollbar {
+        height: 6px;
+    }
+    
+    .thumbnail-scroll-container::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 3px;
+    }
+    
+    .thumbnail-scroll-container::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 3px;
+    }
+    
+    .thumbnail-scroll-container::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+    
+    .thumbnail-item {
+        display: inline-block;
+        margin-right: 10px;
+        cursor: pointer;
+    }
+    
+    .thumbnail-item:last-child {
+        margin-right: 0;
+    }
+    
+    .thumbnail-item img {
+        width: 80px;
+        height: 60px;
+        object-fit: cover;
+        border: 2px solid transparent;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+    }
+    
+    .thumbnail-item.active img {
+        border-color: #0d6efd;
+        box-shadow: 0 0 10px rgba(13, 110, 253, 0.5);
+    }
+    
+    .thumbnail-item:hover img {
+        border-color: #0d6efd;
+        transform: scale(1.05);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="row mb-4">
     <div class="col-12">
@@ -16,20 +189,34 @@
     </div>
 </div>
 
+{% if product.images.exists %}
+<div id="gallery-data" 
+     data-images='{{ image_data_json|safe }}'
+     style="display: none;"></div>
+{% endif %}
+
 <div class="row">
     <!-- Изображения -->
     <div class="col-lg-6 mb-4">
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="bi bi-images"></i> Изображения</h5>
+                <span class="badge bg-secondary">{{ product.images.count }} изображений</span>
             </div>
             <div class="card-body">
                 {% if main_image %}
+                <!-- Основное изображение -->
                 <div class="text-center mb-4">
-                    <img src="{{ main_image.image.url }}" 
-                         alt="{{ product.name }}"
-                         class="img-fluid rounded"
-                         style="max-height: 400px;">
+                    <div class="gallery-thumbnail" 
+                         data-bs-toggle="modal" 
+                         data-bs-target="#imageGalleryModal"
+                         data-image-index="0">
+                        <img src="{{ main_image.image.url }}" 
+                             alt="{{ product.name }}"
+                             class="img-fluid rounded"
+                             style="max-height: 400px; cursor: pointer;"
+                             title="Нажмите для просмотра">
+                    </div>
                     
                     {% if main_image.description %}
                     <p class="text-muted mt-2">{{ main_image.description }}</p>
@@ -41,20 +228,37 @@
                     </span>
                     {% endif %}
                 </div>
-                {% endif %}
                 
+                <!-- Миниатюры всех изображений -->
                 {% if other_images %}
-                <div class="row">
-                    <h6>Другие изображения:</h6>
+                <div class="thumbnail-scroll-container">
+                    <div class="thumbnail-item active" data-image-index="0">
+                        {% if main_image.thumbnail %}
+                        <img src="{{ main_image.thumbnail.url }}" 
+                             alt="{{ product.name }}"
+                             title="{{ main_image.description|default:'Основное изображение' }}">
+                        {% else %}
+                        <img src="{{ main_image.image.url }}" 
+                             alt="{{ product.name }}"
+                             title="{{ main_image.description|default:'Основное изображение' }}">
+                        {% endif %}
+                    </div>
+                    
                     {% for image in other_images %}
-                    <div class="col-4 mb-3">
+                    <div class="thumbnail-item" data-image-index="{{ forloop.counter }}">
+                        {% if image.thumbnail %}
+                        <img src="{{ image.thumbnail.url }}" 
+                             alt="{{ product.name }}"
+                             title="{{ image.description|default:'Изображение '|add:forloop.counter }}">
+                        {% else %}
                         <img src="{{ image.image.url }}" 
                              alt="{{ product.name }}"
-                             class="img-thumbnail"
-                             style="height: 100px; width: 100%; object-fit: cover;">
+                             title="{{ image.description|default:'Изображение '|add:forloop.counter }}">
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>
+                {% endif %}
                 {% endif %}
                 
                 {% if not main_image and not other_images %}
@@ -88,6 +292,7 @@
                 </div>
             </div>
             <div class="card-body">
+                <!-- ... существующий контент ... -->
                 <div class="row mb-3">
                     <div class="col-md-6">
                         <p><strong>Код:</strong> {{ product.code }}</p>
@@ -176,6 +381,63 @@
     </div>
 </div>
 
+<div id="gallery-data" 
+     data-images='{{ image_data_json|safe }}'
+     style="display: none;">
+</div>
+
+<!-- Модальное окно галереи -->
+<div class="modal fade modal-gallery" id="imageGalleryModal" tabindex="-1" aria-labelledby="imageGalleryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0">
+                <h5 class="modal-title text-white" id="imageGalleryModalLabel">Галерея изображений</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="gallery-counter" id="galleryCounter">1 / {{ product.images.count }}</div>
+                
+                <div class="gallery-image-container">
+                    <img id="galleryImage" src="" alt="" class="gallery-image">
+                </div>
+                
+                <!-- Навигационные стрелки -->
+                <button class="gallery-nav gallery-prev" id="galleryPrev">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+                <button class="gallery-nav gallery-next" id="galleryNext">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+                
+                <!-- Панель управления -->
+                <div class="gallery-controls">
+                    <button class="btn btn-sm" id="galleryZoomIn">
+                        <i class="bi bi-zoom-in"></i> Увеличить
+                    </button>
+                    <button class="btn btn-sm" id="galleryZoomOut">
+                        <i class="bi bi-zoom-out"></i> Уменьшить
+                    </button>
+                    <button class="btn btn-sm" id="galleryRotate">
+                        <i class="bi bi-arrow-clockwise"></i> Повернуть
+                    </button>
+                    <a class="btn btn-sm" id="galleryFullSize" target="_blank" href="#">
+                        <i class="bi bi-arrows-fullscreen"></i> Полный размер
+                    </a>
+                    <button class="btn btn-sm" id="galleryDownload">
+                        <i class="bi bi-download"></i> Скачать
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer border-0">
+                <!-- Информация об изображении -->
+                <div class="text-white small text-start w-100">
+                    <div id="galleryImageInfo"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Действия -->
 <div class="card">
     <div class="card-header">
@@ -211,4 +473,326 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Данные галереи будут загружены из data-атрибута
+    document.addEventListener('DOMContentLoaded', function() {
+        // Получаем данные из data-атрибута
+        const galleryDataElement = document.getElementById('gallery-data');
+        let galleryData = {
+            images: [],
+            currentIndex: 0,
+            zoomLevel: 1,
+            rotation: 0
+        };
+        
+        if (galleryDataElement && galleryDataElement.dataset.images) {
+            try {
+                galleryData.images = JSON.parse(galleryDataElement.dataset.images);
+            } catch (e) {
+                console.error('Ошибка парсинга данных галереи:', e);
+            }
+        }
+        
+        // Если данных нет, выходим
+        if (galleryData.images.length === 0) {
+            console.log('Нет изображений для галереи');
+            return;
+        }
+        
+        // Элементы DOM
+        const galleryModal = document.getElementById('imageGalleryModal');
+        const galleryImage = document.getElementById('galleryImage');
+        const galleryCounter = document.getElementById('galleryCounter');
+        const galleryPrev = document.getElementById('galleryPrev');
+        const galleryNext = document.getElementById('galleryNext');
+        const galleryFullSize = document.getElementById('galleryFullSize');
+        const galleryDownload = document.getElementById('galleryDownload');
+        const galleryZoomIn = document.getElementById('galleryZoomIn');
+        const galleryZoomOut = document.getElementById('galleryZoomOut');
+        const galleryRotate = document.getElementById('galleryRotate');
+        const galleryImageInfo = document.getElementById('galleryImageInfo');
+        
+        // Миниатюры
+        const thumbnailItems = document.querySelectorAll('.thumbnail-item');
+        
+        // Инициализация галереи
+        function initGallery() {
+            // Обработчики для миниатюр
+            thumbnailItems.forEach(thumb => {
+                thumb.addEventListener('click', function() {
+                    const index = parseInt(this.dataset.imageIndex);
+                    showImage(index);
+                });
+            });
+            
+            // Обработчики для навигации
+            galleryPrev.addEventListener('click', showPrevImage);
+            galleryNext.addEventListener('click', showNextImage);
+            
+            // Обработчики для управления
+            galleryZoomIn.addEventListener('click', zoomIn);
+            galleryZoomOut.addEventListener('click', zoomOut);
+            galleryRotate.addEventListener('click', rotateImage);
+            
+            if (galleryFullSize) {
+                galleryFullSize.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    openFullSize();
+                });
+            }
+            
+            if (galleryDownload) {
+                galleryDownload.addEventListener('click', downloadImage);
+            }
+            
+            // Обработчик клавиш
+            document.addEventListener('keydown', handleKeyPress);
+            
+            // События модального окна
+            if (galleryModal) {
+                galleryModal.addEventListener('show.bs.modal', function(event) {
+                    const trigger = event.relatedTarget;
+                    if (trigger && trigger.dataset.imageIndex) {
+                        galleryData.currentIndex = parseInt(trigger.dataset.imageIndex);
+                    }
+                    showImage(galleryData.currentIndex);
+                });
+                
+                galleryModal.addEventListener('hidden.bs.modal', function() {
+                    resetImageTransform();
+                });
+            }
+        }
+        
+        // Показать изображение по индексу
+        function showImage(index) {
+            if (index < 0 || index >= galleryData.images.length) return;
+            
+            galleryData.currentIndex = index;
+            const image = galleryData.images[index];
+            
+            // Показываем спиннер загрузки
+            const imageContainer = galleryImage.parentElement;
+            imageContainer.innerHTML = '<div class="gallery-loading"></div>';
+            
+            // Загружаем основное изображение
+            const img = new Image();
+            img.onload = function() {
+                galleryImage.src = image.url;
+                galleryImage.alt = image.description || `Изображение ${index + 1}`;
+                imageContainer.innerHTML = '';
+                imageContainer.appendChild(galleryImage);
+                
+                // Сбрасываем трансформации
+                resetImageTransform();
+                
+                // Обновляем счетчик
+                if (galleryCounter) {
+                    galleryCounter.textContent = `${index + 1} / ${galleryData.images.length}`;
+                }
+                
+                // Обновляем информацию об изображении
+                updateImageInfo(image);
+                
+                // Обновляем ссылку на полный размер
+                if (galleryFullSize) {
+                    galleryFullSize.href = image.url;
+                }
+                
+                // Обновляем активную миниатюру
+                updateActiveThumbnail(index);
+            };
+            
+            img.onerror = function() {
+                // Если основное изображение не загрузилось, пробуем миниатюру
+                img.src = image.thumbnailUrl || image.url;
+            };
+            
+            img.src = image.url;
+        }
+        
+        // Обновить активную миниатюру
+        function updateActiveThumbnail(index) {
+            thumbnailItems.forEach(thumb => {
+                thumb.classList.remove('active');
+                if (parseInt(thumb.dataset.imageIndex) === index) {
+                    thumb.classList.add('active');
+                }
+            });
+        }
+        
+        // Показать предыдущее изображение
+        function showPrevImage() {
+            if (galleryData.currentIndex > 0) {
+                showImage(galleryData.currentIndex - 1);
+            } else {
+                // Циклическая навигация
+                showImage(galleryData.images.length - 1);
+            }
+        }
+        
+        // Показать следующее изображение
+        function showNextImage() {
+            if (galleryData.currentIndex < galleryData.images.length - 1) {
+                showImage(galleryData.currentIndex + 1);
+            } else {
+                // Циклическая навигация
+                showImage(0);
+            }
+        }
+        
+        // Обновить информацию об изображении
+        function updateImageInfo(image) {
+            if (!galleryImageInfo) return;
+            
+            let infoHtml = '';
+            
+            if (image.description) {
+                infoHtml += `<div><strong>Описание:</strong> ${image.description}</div>`;
+            }
+            
+            if (image.isMain) {
+                infoHtml += `<div><span class="badge bg-success">Основное изображение</span></div>`;
+            }
+            
+            infoHtml += `
+                <div><strong>Загружено:</strong> ${image.uploadedAt}</div>
+                <div><strong>Кем:</strong> ${image.uploadedBy}</div>
+                <div><strong>Размер файла:</strong> ${image.fileSize}</div>
+            `;
+            
+            galleryImageInfo.innerHTML = infoHtml;
+        }
+        
+        // Увеличить изображение
+        function zoomIn() {
+            galleryData.zoomLevel += 0.25;
+            applyImageTransform();
+        }
+        
+        // Уменьшить изображение
+        function zoomOut() {
+            if (galleryData.zoomLevel > 0.25) {
+                galleryData.zoomLevel -= 0.25;
+                applyImageTransform();
+            }
+        }
+        
+        // Повернуть изображение
+        function rotateImage() {
+            galleryData.rotation = (galleryData.rotation + 90) % 360;
+            applyImageTransform();
+        }
+        
+        // Применить трансформации к изображению
+        function applyImageTransform() {
+            galleryImage.style.transform = `
+                scale(${galleryData.zoomLevel}) 
+                rotate(${galleryData.rotation}deg)
+            `;
+            galleryImage.style.transition = 'transform 0.3s ease';
+        }
+        
+        // Сбросить трансформации
+        function resetImageTransform() {
+            galleryData.zoomLevel = 1;
+            galleryData.rotation = 0;
+            galleryImage.style.transform = '';
+        }
+        
+        // Открыть изображение в полном размере
+        function openFullSize() {
+            const image = galleryData.images[galleryData.currentIndex];
+            window.open(image.url, '_blank');
+        }
+        
+        // Скачать изображение
+        function downloadImage() {
+            const image = galleryData.images[galleryData.currentIndex];
+            const link = document.createElement('a');
+            link.href = image.url;
+            
+            // Извлекаем имя файла из URL
+            const fileName = image.fileName.split('/').pop() || 
+                           image.url.split('/').pop() || 
+                           'image.jpg';
+            
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        // Обработка нажатия клавиш
+        function handleKeyPress(event) {
+            if (!galleryModal || !galleryModal.classList.contains('show')) return;
+            
+            switch(event.key) {
+                case 'ArrowLeft':
+                    showPrevImage();
+                    event.preventDefault();
+                    break;
+                case 'ArrowRight':
+                    showNextImage();
+                    event.preventDefault();
+                    break;
+                case 'Escape':
+                    if (bootstrap && bootstrap.Modal) {
+                        const modalInstance = bootstrap.Modal.getInstance(galleryModal);
+                        if (modalInstance) modalInstance.hide();
+                    }
+                    break;
+                case '+':
+                case '=':
+                    if (event.ctrlKey || event.metaKey) {
+                        zoomIn();
+                        event.preventDefault();
+                    }
+                    break;
+                case '-':
+                    if (event.ctrlKey || event.metaKey) {
+                        zoomOut();
+                        event.preventDefault();
+                    }
+                    break;
+            }
+        }
+        
+        // Добавляем touch-жесты для мобильных устройств
+        let touchStartX = 0;
+        let touchEndX = 0;
+        
+        if (galleryImage) {
+            galleryImage.addEventListener('touchstart', function(e) {
+                touchStartX = e.changedTouches[0].screenX;
+            }, { passive: true });
+            
+            galleryImage.addEventListener('touchend', function(e) {
+                touchEndX = e.changedTouches[0].screenX;
+                handleSwipe();
+            }, { passive: true });
+        }
+        
+        function handleSwipe() {
+            const threshold = 50;
+            if (touchStartX - touchEndX > threshold) {
+                showNextImage(); // Свайп влево
+            } else if (touchEndX - touchStartX > threshold) {
+                showPrevImage(); // Свайп вправо
+            }
+        }
+        
+        // Запуск галереи
+        initGallery();
+        
+        // Добавляем атрибут title для подсказки
+        const galleryThumbnail = document.querySelector('.gallery-thumbnail');
+        if (galleryThumbnail) {
+            galleryThumbnail.title = "Нажмите для просмотра галереи\n← → для навигации\nESC для выхода";
+        }
+    });
+</script>
 {% endblock %}

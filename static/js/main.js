@@ -51,3 +51,46 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+// Дополнительные функции для галереи
+
+// Открытие изображения в новой вкладке при клике средней кнопкой мыши
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.gallery-thumbnail img').forEach(img => {
+        img.addEventListener('auxclick', function(e) {
+            if (e.button === 1) { // Средняя кнопка мыши
+                e.preventDefault();
+                window.open(this.src.replace('_thumb', ''), '_blank');
+            }
+        });
+    });
+});
+
+// Функция для предзагрузки изображений галереи
+function preloadGalleryImages(imageUrls) {
+    imageUrls.forEach(url => {
+        const img = new Image();
+        img.src = url;
+    });
+}
+
+// Улучшенная обработка ошибок загрузки изображений
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('img').forEach(img => {
+        img.addEventListener('error', function() {
+            // Если миниатюра не загрузилась, пробуем загрузить оригинал
+            if (this.src.includes('_thumb') || this.src.includes('thumbnails')) {
+                const originalUrl = this.src
+                    .replace('_thumb', '')
+                    .replace('thumbnails', 'images');
+                
+                // Создаем новое изображение для проверки
+                const testImg = new Image();
+                testImg.onload = () => {
+                    this.src = originalUrl;
+                };
+                testImg.src = originalUrl;
+            }
+        });
+    });
+});

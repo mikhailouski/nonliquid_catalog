@@ -40,3 +40,6 @@ Thumbs.db
 # Temp files
 *.tmp
 *.temp
+
+# Celery
+celerybeat_schedule.*

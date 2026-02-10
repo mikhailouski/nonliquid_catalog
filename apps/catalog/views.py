@@ -18,6 +18,8 @@ from .forms import (
 from django.contrib.auth import logout
 from django.shortcuts import redirect
 from django.contrib import messages
+import json
+from django.core.serializers.json import DjangoJSONEncoder
 
 class HomeView(ListView):
     """Главная страница - список подразделений"""
@@ -88,7 +90,6 @@ class ProductDetailView(DetailView):
     context_object_name = 'product'
     
     def get_object(self):
-        # Новая структура URL: product/<id>/in/<subdivision_code>/
         product_id = self.kwargs['product_id']
         subdivision_code = self.kwargs['subdivision_code']
         
@@ -101,17 +102,54 @@ class ProductDetailView(DetailView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['main_image'] = self.object.get_main_image()
-        context['other_images'] = self.object.images.exclude(
-            id=context['main_image'].id if context['main_image'] else None
-        )
+        product = context['product']
+        
+        # Получаем все изображения продукта
+        all_images = product.images.all()
+        
+        # Основное изображение
+        main_image = all_images.filter(is_main=True).first()
+        if not main_image and all_images.exists():
+            main_image = all_images.first()
+        
+        context['main_image'] = main_image
+        context['all_images'] = all_images
+        context['other_images'] = all_images.exclude(id=main_image.id) if main_image else all_images.none()
+        
+        # Подготавливаем данные для галереи в формате JSON
+        image_data = []
+        for image in all_images:
+            image_data.append({
+                'id': image.id,
+                'url': image.image.url,
+                'thumbnailUrl': image.thumbnail.url if image.thumbnail else image.image.url,
+                'description': image.description or '',
+                'isMain': image.is_main,
+                'uploadedAt': image.uploaded_at.strftime('%d.%m.%Y %H:%M') if image.uploaded_at else '',
+                'uploadedBy': image.uploaded_by.get_full_name() if image.uploaded_by and image.uploaded_by.get_full_name() else (image.uploaded_by.username if image.uploaded_by else ''),
+                'fileName': image.image.name,
+                'fileSize': self._format_file_size(image.image.size) if image.image.size else '0 B'
+            })
+        
+        context['image_data_json'] = json.dumps(image_data, cls=DjangoJSONEncoder)
         
         # Проверяем права пользователя
-        context['can_edit'] = self.object.can_edit(self.request.user)
-        context['can_delete'] = self.object.can_delete(self.request.user)
-        context['can_upload_images'] = self.object.can_edit(self.request.user)
+        context['can_edit'] = product.can_edit(self.request.user)
+        context['can_delete'] = product.can_delete(self.request.user)
+        context['can_upload_images'] = product.can_edit(self.request.user)
         
         return context
+    
+    def _format_file_size(self, size_bytes):
+        """Форматирование размера файла"""
+        if size_bytes < 1024:
+            return f"{size_bytes} B"
+        elif size_bytes < 1024 * 1024:
+            return f"{size_bytes / 1024:.1f} KB"
+        elif size_bytes < 1024 * 1024 * 1024:
+            return f"{size_bytes / (1024 * 1024):.1f} MB"
+        else:
+            return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
 
 class ProductCreateView(LoginRequiredMixin, CreateView):
     """Создание нового продукта (базовый класс)"""
